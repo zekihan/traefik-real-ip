@@ -1,8 +1,8 @@
-package traefikrealip_test
+package traefik_real_ip_test
 
 import (
 	"context"
-	traefikrealip "github.com/zekihan/traefik-real-ip"
+	"github.com/zekihan/traefik-real-ip"
 	"github.com/zekihan/traefik-real-ip/helpers"
 	"net/http"
 	"net/http/httptest"
@@ -159,12 +159,12 @@ func TestIPResolver_ServeHTTP(t *testing.T) {
 	for _, test := range testCases {
 		test := test
 		t.Run(test.desc, func(t *testing.T) {
-			cfg := traefikrealip.CreateConfig()
+			cfg := traefik_real_ip.CreateConfig()
 
 			ctx := context.Background()
 			next := http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {})
 
-			handler, err := traefikrealip.New(ctx, next, cfg, "traefikrealip")
+			handler, err := traefik_real_ip.New(ctx, next, cfg, "traefikrealip")
 			if err != nil {
 				t.Fatal(err)
 			}

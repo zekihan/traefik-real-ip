@@ -1,4 +1,4 @@
-package traefikrealip
+package traefik_real_ip
 
 import (
 	"context"
