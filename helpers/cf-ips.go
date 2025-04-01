@@ -3,9 +3,9 @@ package helpers
 import (
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"net/http"
+	"os"
 	"strings"
 )
 
@@ -14,11 +14,13 @@ var CF_IPS = make([]*net.IPNet, 0)
 func init() {
 	err := getCFIP4()
 	if err != nil {
-		log.Fatal(fmt.Sprintf("Error fetching Cloudflare IPs: %v", err))
+		os.Stderr.WriteString(fmt.Sprintf("Error fetching Cloudflare IPs: %v", err))
+		os.Exit(1)
 	}
 	err = getCFIP6()
 	if err != nil {
-		log.Fatal(fmt.Sprintf("Error fetching Cloudflare IPs: %v", err))
+		os.Stderr.WriteString(fmt.Sprintf("Error fetching Cloudflare IPs: %v", err))
+		os.Exit(1)
 	}
 }
 
@@ -45,7 +47,7 @@ func getCFIP(url string) error {
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
-		log.Fatal(fmt.Sprintf("Error fetching Cloudflare IPs: %s", response.Status))
+		return fmt.Errorf("failed to fetch Cloudflare IPs: %s", response.Status)
 	}
 
 	bytes, err := io.ReadAll(response.Body)
@@ -61,7 +63,7 @@ func getCFIP(url string) error {
 		if cidr != "" {
 			_, block, err := net.ParseCIDR(cidr)
 			if err != nil {
-				log.Fatal(fmt.Sprintf("Error parsing CIDR %s: %v", cidr, err))
+				return err
 			}
 			CF_IPS = append(CF_IPS, block)
 		}
