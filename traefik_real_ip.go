@@ -77,12 +77,14 @@ func (a *IPResolver) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 }
 
 func getRealIP(srcIP net.IP, req *http.Request) (net.IP, error) {
-	if helpers.IsCFIP(srcIP) {
-		cfIP, err := handleCFIP(req)
-		if err != nil {
-			return nil, err
+	if len(req.Header.Values(helpers.CF_CONNECTING_IP)) > 0 {
+		if helpers.IsCFIP(srcIP) || helpers.IsLocalIP(srcIP) {
+			cfIP, err := handleCFIP(req)
+			if err != nil {
+				return nil, err
+			}
+			return cfIP, nil
 		}
-		return cfIP, nil
 	}
 
 	if len(req.Header.Values(helpers.X_REAL_IP)) > 0 {

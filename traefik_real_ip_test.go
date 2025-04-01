@@ -40,13 +40,6 @@ func TestIPResolver_ServeHTTP(t *testing.T) {
 			expectedStatus: http.StatusOK,
 		},
 		{
-			desc:            "CF Origin no headers",
-			remote:          "103.21.244.23",
-			reqHeaders:      map[string]string{},
-			expectedHeaders: map[string]string{},
-			expectedStatus:  http.StatusBadRequest,
-		},
-		{
 			desc:            "Invalid RemoteAddr",
 			remote:          "103.21.244",
 			reqHeaders:      map[string]string{},
@@ -119,6 +112,20 @@ func TestIPResolver_ServeHTTP(t *testing.T) {
 			expectedStatus: http.StatusOK,
 		},
 		{
+			desc:   "X-Forwarded-For with private IP",
+			remote: "1.1.1.1",
+			reqHeaders: map[string]string{
+				helpers.X_FORWARDED_FOR:  "1.2.3.4, 192.168.1.1",
+				helpers.CF_CONNECTING_IP: "1.2.3.4",
+			},
+			expectedHeaders: map[string]string{
+				helpers.X_REAL_IP:       "1.2.3.4",
+				helpers.X_IS_TRUSTED:    "no",
+				helpers.X_FORWARDED_FOR: "1.2.3.4, 192.168.1.1",
+			},
+			expectedStatus: http.StatusOK,
+		},
+		{
 			desc:   "ipv6 source ipv4",
 			remote: "103.21.244.23",
 			reqHeaders: map[string]string{
@@ -149,11 +156,22 @@ func TestIPResolver_ServeHTTP(t *testing.T) {
 			remote: "103.21.244.23",
 			reqHeaders: map[string]string{
 				helpers.CF_CONNECTING_IP: "1.2.3",
-				helpers.X_IS_TRUSTED:     "no",
-				helpers.X_FORWARDED_FOR:  "1.2.3",
 			},
 			expectedHeaders: map[string]string{},
 			expectedStatus:  http.StatusBadRequest,
+		},
+		{
+			desc:   "Local CF-Connecting-IP",
+			remote: "10.0.0.1",
+			reqHeaders: map[string]string{
+				helpers.CF_CONNECTING_IP: "1.2.3.4",
+			},
+			expectedHeaders: map[string]string{
+				helpers.X_REAL_IP:       "1.2.3.4",
+				helpers.X_IS_TRUSTED:    "yes",
+				helpers.X_FORWARDED_FOR: "1.2.3.4",
+			},
+			expectedStatus: http.StatusOK,
 		},
 	}
 	for _, test := range testCases {
