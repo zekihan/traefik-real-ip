@@ -56,7 +56,7 @@ func (a *IPResolver) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	if helpers.IsLocalIP(srcIP) || helpers.IsCFIP(srcIP) {
+	if helpers.IsTrustedIP(srcIP) {
 		req.Header.Set(helpers.X_IS_TRUSTED, "yes")
 	} else {
 		req.Header.Set(helpers.X_IS_TRUSTED, "no")
@@ -87,7 +87,7 @@ func (a *IPResolver) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 
 func getRealIP(srcIP net.IP, req *http.Request) (net.IP, error) {
 	if len(req.Header.Values(helpers.CF_CONNECTING_IP)) > 0 {
-		if helpers.IsCFIP(srcIP) || helpers.IsLocalIP(srcIP) {
+		if helpers.IsTrustedIP(srcIP) {
 			cfIP, err := handleCFIP(req)
 			if err != nil {
 				return nil, err
@@ -97,19 +97,23 @@ func getRealIP(srcIP net.IP, req *http.Request) (net.IP, error) {
 	}
 
 	if len(req.Header.Values(helpers.X_REAL_IP)) > 0 {
-		xRealIP, err := handleXRealIP(req)
-		if err != nil {
-			return nil, err
+		if helpers.IsTrustedIP(srcIP) {
+			xRealIP, err := handleXRealIP(req)
+			if err != nil {
+				return nil, err
+			}
+			return xRealIP, nil
 		}
-		return xRealIP, nil
 	}
 
 	if len(req.Header.Values(helpers.X_FORWARDED_FOR)) > 0 {
-		xForwardedFor, err := handleXForwardedFor(req)
-		if err != nil {
-			return nil, err
+		if helpers.IsTrustedIP(srcIP) {
+			xForwardedFor, err := handleXForwardedFor(req)
+			if err != nil {
+				return nil, err
+			}
+			return xForwardedFor, nil
 		}
-		return xForwardedFor, nil
 	}
 
 	return srcIP, nil
