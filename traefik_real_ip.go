@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"runtime/debug"
 	"strings"
 )
 
@@ -44,6 +45,14 @@ func New(_ context.Context, next http.Handler, config *Config, name string) (htt
 }
 
 func (a *IPResolver) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+	defer func() {
+		if err := recover(); err != nil {
+			log.Println(fmt.Sprintf("While processing panicked %s", err))
+			log.Println(fmt.Sprintf("%s", debug.Stack()))
+			a.next.ServeHTTP(rw, req)
+		}
+	}()
+
 	srcIP, err := getSrcIP(req)
 	if err != nil {
 		http.Error(rw, err.Error(), http.StatusBadRequest)
