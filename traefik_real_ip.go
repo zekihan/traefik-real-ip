@@ -4,10 +4,19 @@ import (
 	"context"
 	"fmt"
 	"github.com/zekihan/traefik-real-ip/helpers"
+	"log"
 	"net"
 	"net/http"
+	"os"
 	"strings"
 )
+
+func init() {
+	log.SetOutput(os.Stdout)
+	log.SetPrefix(fmt.Sprintf("Plugin [%s]: ", helpers.PLUGIN_NAME))
+	log.SetFlags(log.Ldate | log.Ltime | log.Lmsgprefix)
+	log.Println("Plugin initialized")
+}
 
 // Config the plugin configuration.
 type Config struct {

@@ -5,7 +5,6 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"os"
 	"strings"
 )
 
@@ -14,13 +13,11 @@ var CF_IPS = make([]*net.IPNet, 0)
 func init() {
 	err := getCFIP4()
 	if err != nil {
-		os.Stderr.WriteString(fmt.Sprintf("Error fetching Cloudflare IPs: %v", err))
-		os.Exit(1)
+		panic(fmt.Sprintf("Error fetching Cloudflare IPs: %v", err))
 	}
 	err = getCFIP6()
 	if err != nil {
-		os.Stderr.WriteString(fmt.Sprintf("Error fetching Cloudflare IPs: %v", err))
-		os.Exit(1)
+		panic(fmt.Sprintf("Error fetching Cloudflare IPs: %v", err))
 	}
 }
 
