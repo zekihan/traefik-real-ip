@@ -12,15 +12,19 @@ import (
 
 // Config the plugin configuration.
 type Config struct {
-	TrustedIPs []string `json:"trustedIPs,omitempty"`
-	LogLevel   string   `json:"logLevel,omitempty"`
+	ThrustLocal      bool     `json:"thrustLocal,omitempty"`
+	ThrustCloudFlare bool     `json:"thrustCloudFlare,omitempty"`
+	TrustedIPs       []string `json:"trustedIPs,omitempty"`
+	LogLevel         string   `json:"logLevel,omitempty"`
 }
 
 // CreateConfig creates the default plugin configuration.
 func CreateConfig() *Config {
 	return &Config{
-		TrustedIPs: make([]string, 0),
-		LogLevel:   "info",
+		ThrustLocal:      true,
+		ThrustCloudFlare: true,
+		TrustedIPs:       make([]string, 0),
+		LogLevel:         "info",
 	}
 }
 
@@ -35,7 +39,27 @@ type IPResolver struct {
 
 // New created a new IPResolver plugin.
 func New(_ context.Context, next http.Handler, config *Config, name string) (http.Handler, error) {
+	ipResolver := &IPResolver{
+		next: next,
+		conf: config,
+		name: name,
+	}
+
 	trustedIPNets := make([]*net.IPNet, 0)
+	if config.ThrustLocal {
+		localIPs, err := ipResolver.getLocalIPsHardcoded()
+		if err != nil {
+			return nil, fmt.Errorf("error getting local IPs: %v", err)
+		}
+		trustedIPNets = append(trustedIPNets, localIPs...)
+	}
+	if config.ThrustCloudFlare {
+		cloudFlareIPs := ipResolver.getCloudFlareIPs()
+		if len(cloudFlareIPs) == 0 {
+			return nil, fmt.Errorf("error getting Cloudflare IPs")
+		}
+		trustedIPNets = append(trustedIPNets, cloudFlareIPs...)
+	}
 	for _, ipRange := range config.TrustedIPs {
 		_, ipNet, err := net.ParseCIDR(ipRange)
 		if err != nil {
@@ -43,6 +67,8 @@ func New(_ context.Context, next http.Handler, config *Config, name string) (htt
 		}
 		trustedIPNets = append(trustedIPNets, ipNet)
 	}
+
+	ipResolver.trustedIPNets = trustedIPNets
 
 	logLevel := &slog.LevelVar{}
 	switch strings.ToLower(config.LogLevel) {
@@ -62,14 +88,9 @@ func New(_ context.Context, next http.Handler, config *Config, name string) (htt
 	}
 
 	pluginLogger := NewPluginLogger(name, logLevel)
+	ipResolver.logger = pluginLogger
 
-	return &IPResolver{
-		next:          next,
-		conf:          config,
-		name:          name,
-		trustedIPNets: trustedIPNets,
-		logger:        pluginLogger,
-	}, nil
+	return ipResolver, nil
 }
 
 func (a *IPResolver) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
@@ -199,7 +220,7 @@ func (a *IPResolver) handleXForwardedFor(req *http.Request) (net.IP, error) {
 			}
 		}
 		for _, xForwardedForValue := range xForwardedForValues {
-			if !a.isLocalIP(xForwardedForValue) {
+			if !a.isPrivateIP(xForwardedForValue) {
 				a.logger.Debug("Found valid X-Forwarded-For IP", slog.String("ip", xForwardedForValue.String()))
 				return xForwardedForValue, nil
 			}
