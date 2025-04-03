@@ -5,22 +5,24 @@ services:
     image: docker.io/traefik/whoami:v1.11.0@sha256:200689790a0a0ea48ca45992e0450bc26ccab5307375b41c84dfc4f2475937ab
     container_name: traefik-real-ip_whoami
     depends_on:
-      - traefik
+      traefik:
+        condition: service_healthy
     networks:
       - proxy
     volumes:
       - /etc/localtime:/etc/localtime:ro
     labels:
-      - "traefik.http.services.whoami.loadbalancer.server.port=80"
-      - "traefik.http.services.whoami.loadbalancer.server.scheme=http"
-      - "traefik.http.services.whoami.loadbalancer.passhostheader=true"
+      - "traefik.http.services.traefik-real-ip_whoami.loadbalancer.server.port=80"
+      - "traefik.http.services.traefik-real-ip_whoami.loadbalancer.server.scheme=http"
+      - "traefik.http.services.traefik-real-ip_whoami.loadbalancer.passhostheader=true"
 
-      - "traefik.http.routers.whoami.service=whoami"
-      - "traefik.http.routers.whoami.middlewares=traefik-real-ip@file"
-      - "traefik.http.routers.whoami.rule=Method(`GET`)"
-      - "traefik.http.routers.whoami.entrypoints=web"
+      - "traefik.http.routers.traefik-real-ip_whoami.service=traefik-real-ip_whoami"
+      - "traefik.http.routers.traefik-real-ip_whoami.middlewares=traefik-real-ip@file"
+      - "traefik.http.routers.traefik-real-ip_whoami.rule=Method(`GET`)"
+      - "traefik.http.routers.traefik-real-ip_whoami.entrypoints=web"
 
       - "traefik.enable=true"
+      - "traefik-real-ip.enable=true"
 
   traefik:
     image: docker.io/traefik:v3.3.5@sha256:104204dadedf5d1284f8ef8f97f705649ac81aa6f7a6c9abf13e2c59245b8abc
@@ -36,6 +38,11 @@ services:
       - ../:/plugins-local/src/github.com/zekihan/traefik-real-ip:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - /etc/localtime:/etc/localtime:ro
+    healthcheck:
+      test: ["CMD-SHELL", "traefik healthcheck | grep OK"]
+      interval: 1s
+      timeout: 3s
+      retries: 5
 
 networks:
   proxy:
