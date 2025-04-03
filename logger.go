@@ -57,6 +57,17 @@ func ErrorAttr(val any) slog.Attr {
 	)
 }
 
+func ErrorAttrWithoutStack(val any) slog.Attr {
+	errMsg := fmt.Sprintf("%v", val)
+	if err, ok := val.(error); ok {
+		errMsg = err.Error()
+	}
+
+	return slog.Group("error",
+		slog.String("exception.message", errMsg),
+	)
+}
+
 // Log emits a log record with the current time and the given level and message.
 // The Record's Attrs consist of the Logger's attributes followed by
 // the Attrs specified by args.
