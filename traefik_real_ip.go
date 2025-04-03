@@ -2,11 +2,12 @@ package traefik_real_ip
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
 	"net/http"
-	"runtime/debug"
+	"reflect"
 	"strings"
 )
 
@@ -94,12 +95,7 @@ func New(_ context.Context, next http.Handler, config *Config, name string) (htt
 }
 
 func (a *IPResolver) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	defer func() {
-		if err := recover(); err != nil {
-			a.logger.Error("Panic recovered", err, slog.String("stack", string(debug.Stack())))
-			a.next.ServeHTTP(rw, req)
-		}
-	}()
+	defer a.handlePanic(rw, req)
 
 	srcIP, err := a.getSrcIP(req)
 	if err != nil {
@@ -155,4 +151,53 @@ func (a *IPResolver) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	a.next.ServeHTTP(rw, req)
+}
+
+func (a *IPResolver) handlePanic(rw http.ResponseWriter, req *http.Request) {
+	r := recover()
+	err := getPanicError(r)
+	if err == nil {
+		return
+	}
+
+	if errors.Is(err, http.ErrAbortHandler) {
+		retryCount, ok := req.Context().Value("retryCount").(int)
+		if ok {
+			if retryCount > 3 {
+				a.logger.Info("Max retry count reached, aborting", slog.Int("retryCount", retryCount), ErrorAttrWithoutStack(err))
+				a.next.ServeHTTP(rw, req)
+				return // suppress
+			}
+		} else {
+			retryCount = 1
+		}
+		a.logger.Info("Retrying request", slog.Int("retryCount", retryCount))
+		req = req.WithContext(context.WithValue(req.Context(), "retryCount", retryCount+1))
+		a.ServeHTTP(rw, req)
+		return // suppress
+	}
+
+	a.logger.Error("Panic recovered", ErrorAttr(err))
+	a.next.ServeHTTP(rw, req)
+}
+
+func getPanicError(r any) error {
+	if r == nil {
+		return nil
+	}
+
+	err, ok := r.(error)
+	if ok {
+		return err
+	}
+
+	refVal, ok := r.(reflect.Value)
+	if ok && refVal.IsValid() && refVal.CanInterface() {
+		refValInt := refVal.Interface()
+		if err, ok := refValInt.(error); ok {
+			return err
+		}
+	}
+
+	return fmt.Errorf("panic: %v", r)
 }
