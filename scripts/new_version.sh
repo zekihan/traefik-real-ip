@@ -33,6 +33,7 @@ readme="${readme//${vers}/${new_vers}}"
 echo "${readme}" >README.md
 
 git add VERSION
+git add README.md
 
 git commit -m "Bump version to ${new_vers}"
 git tag -s -a "v${new_vers}" -m "Version ${new_vers}"
