@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
-	"runtime/debug"
 	"strings"
 )
 
@@ -96,7 +95,7 @@ func New(_ context.Context, next http.Handler, config *Config, name string) (htt
 func (a *IPResolver) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	defer func() {
 		if err := recover(); err != nil {
-			a.logger.Error("Panic recovered", err, slog.String("stack", string(debug.Stack())))
+			a.logger.Error("Panic recovered", ErrorAttr(err))
 			a.next.ServeHTTP(rw, req)
 		}
 	}()

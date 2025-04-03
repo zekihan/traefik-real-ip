@@ -2,8 +2,10 @@ package traefik_real_ip
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
+	"runtime"
 )
 
 type PluginLogger struct {
@@ -15,7 +17,7 @@ func NewPluginLogger(pluginName string, logLevel *slog.LevelVar) *PluginLogger {
 	opts := &slog.HandlerOptions{
 		AddSource:   false,
 		Level:       logLevel,
-		ReplaceAttr: nil,
+		ReplaceAttr: replaceAttr,
 	}
 
 	handler := slog.NewTextHandler(os.Stdout, opts)
@@ -24,6 +26,35 @@ func NewPluginLogger(pluginName string, logLevel *slog.LevelVar) *PluginLogger {
 		logger:     slog.Default(),
 		pluginName: pluginName,
 	}
+}
+
+func replaceAttr(_ []string, a slog.Attr) slog.Attr {
+	switch a.Value.Kind() {
+	case slog.KindAny:
+		switch v := a.Value.Any().(type) {
+		case error:
+			return ErrorAttr(v)
+		}
+	default:
+		return a
+	}
+
+	return a
+}
+
+func ErrorAttr(val any) slog.Attr {
+	errMsg := fmt.Sprintf("%v", val)
+	if err, ok := val.(error); ok {
+		errMsg = err.Error()
+	}
+
+	stack := make([]byte, 4096)
+	n := runtime.Stack(stack, false)
+
+	return slog.Group("error",
+		slog.String("exception.message", errMsg),
+		slog.String("exception.stacktrace", fmt.Sprintf("%s", stack[:n])),
+	)
 }
 
 // Log emits a log record with the current time and the given level and message.
