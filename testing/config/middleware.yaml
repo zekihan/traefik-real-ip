@@ -2,4 +2,6 @@ http:
   middlewares:
     traefik-real-ip:
       plugin:
-        traefik-real-ip: { }
+        traefik-real-ip:
+          trustedIPs: [ ]
+          logLevel: debug
