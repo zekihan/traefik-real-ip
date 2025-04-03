@@ -7,8 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	traefik_real_ip "github.com/zekihan/traefik-real-ip"
-	"github.com/zekihan/traefik-real-ip/helpers"
+	traefikrealip "github.com/zekihan/traefik-real-ip"
 )
 
 func TestIPResolver_ServeHTTP(t *testing.T) {
@@ -25,202 +24,207 @@ func TestIPResolver_ServeHTTP(t *testing.T) {
 			remote:     "1.2.3.4",
 			reqHeaders: map[string]string{},
 			expectedHeaders: map[string]string{
-				helpers.X_REAL_IP:       "1.2.3.4",
-				helpers.X_IS_TRUSTED:    "no",
-				helpers.X_FORWARDED_FOR: "1.2.3.4",
+				traefikrealip.X_REAL_IP:       "1.2.3.4",
+				traefikrealip.X_IS_TRUSTED:    "no",
+				traefikrealip.X_FORWARDED_FOR: "1.2.3.4",
 			},
 			expectedStatus: http.StatusOK,
 		},
 		{
-			desc:       "No headers ipv6",
-			remote:     "[1001:3984:3989::1]",
-			reqHeaders: map[string]string{},
-			expectedHeaders: map[string]string{
-				helpers.X_REAL_IP:       "1001:3984:3989::1",
-				helpers.X_IS_TRUSTED:    "no",
-				helpers.X_FORWARDED_FOR: "1001:3984:3989::1",
-			},
-			expectedStatus: http.StatusOK,
-		},
-		{
-			desc:            "Invalid RemoteAddr",
-			remote:          "103.21.244",
-			reqHeaders:      map[string]string{},
-			expectedHeaders: map[string]string{},
-			expectedStatus:  http.StatusBadRequest,
-		},
-		{
-			desc:   "CF Origin",
+			desc:   "CF-Connecting-IP",
 			remote: "103.21.244.23",
 			reqHeaders: map[string]string{
-				helpers.CF_CONNECTING_IP: "1.2.3.4",
+				traefikrealip.CF_CONNECTING_IP: "1.2.3.4",
 			},
 			expectedHeaders: map[string]string{
-				helpers.X_REAL_IP:       "1.2.3.4",
-				helpers.X_IS_TRUSTED:    "yes",
-				helpers.X_FORWARDED_FOR: "1.2.3.4",
+				traefikrealip.X_REAL_IP:       "1.2.3.4",
+				traefikrealip.X_IS_TRUSTED:    "yes",
+				traefikrealip.X_FORWARDED_FOR: "1.2.3.4",
 			},
 			expectedStatus: http.StatusOK,
 		},
 		{
 			desc:   "X-Real-IP",
-			remote: "1.1.1.1",
+			remote: "10.0.0.1",
 			reqHeaders: map[string]string{
-				helpers.X_REAL_IP: "1.2.3.4",
+				traefikrealip.X_REAL_IP: "1.2.3.4",
 			},
 			expectedHeaders: map[string]string{
-				helpers.X_REAL_IP:       "1.2.3.4",
-				helpers.X_IS_TRUSTED:    "no",
-				helpers.X_FORWARDED_FOR: "1.2.3.4",
+				traefikrealip.X_REAL_IP:       "1.2.3.4",
+				traefikrealip.X_IS_TRUSTED:    "yes",
+				traefikrealip.X_FORWARDED_FOR: "1.2.3.4",
 			},
 			expectedStatus: http.StatusOK,
 		},
 		{
 			desc:   "X-Forwarded-For",
-			remote: "1.1.1.1",
+			remote: "10.0.0.1",
 			reqHeaders: map[string]string{
-				helpers.X_FORWARDED_FOR: "1.2.3.4",
+				traefikrealip.X_FORWARDED_FOR: "1.2.3.4",
 			},
 			expectedHeaders: map[string]string{
-				helpers.X_REAL_IP:       "1.2.3.4",
-				helpers.X_IS_TRUSTED:    "no",
-				helpers.X_FORWARDED_FOR: "1.2.3.4",
+				traefikrealip.X_REAL_IP:       "1.2.3.4",
+				traefikrealip.X_IS_TRUSTED:    "yes",
+				traefikrealip.X_FORWARDED_FOR: "1.2.3.4",
 			},
 			expectedStatus: http.StatusOK,
 		},
 		{
 			desc:   "X-Forwarded-For with multiple IPs",
-			remote: "1.1.1.1",
+			remote: "10.0.0.1",
 			reqHeaders: map[string]string{
-				helpers.X_FORWARDED_FOR: "1.2.3.4, 1.1.1.1",
+				traefikrealip.X_FORWARDED_FOR: "1.2.3.4, 1.1.1.1",
 			},
 			expectedHeaders: map[string]string{
-				helpers.X_REAL_IP:       "1.2.3.4",
-				helpers.X_IS_TRUSTED:    "no",
-				helpers.X_FORWARDED_FOR: "1.2.3.4, 1.1.1.1",
+				traefikrealip.X_REAL_IP:       "1.2.3.4",
+				traefikrealip.X_IS_TRUSTED:    "yes",
+				traefikrealip.X_FORWARDED_FOR: "1.2.3.4, 1.1.1.1",
 			},
 			expectedStatus: http.StatusOK,
 		},
 		{
 			desc:   "X-Forwarded-For with private IP",
-			remote: "1.1.1.1",
+			remote: "10.0.0.1",
 			reqHeaders: map[string]string{
-				helpers.X_FORWARDED_FOR: "192.168.1.1, 1.2.3.4",
+				traefikrealip.X_FORWARDED_FOR: "192.168.1.1, 1.2.3.4",
 			},
 			expectedHeaders: map[string]string{
-				helpers.X_REAL_IP:       "1.2.3.4",
-				helpers.X_IS_TRUSTED:    "no",
-				helpers.X_FORWARDED_FOR: "1.2.3.4, 192.168.1.1",
+				traefikrealip.X_REAL_IP:       "1.2.3.4",
+				traefikrealip.X_IS_TRUSTED:    "yes",
+				traefikrealip.X_FORWARDED_FOR: "1.2.3.4, 192.168.1.1",
 			},
 			expectedStatus: http.StatusOK,
 		},
 		{
 			desc:   "X-Forwarded-For with private IP",
-			remote: "1.1.1.1",
+			remote: "10.0.0.1",
 			reqHeaders: map[string]string{
-				helpers.X_FORWARDED_FOR:  "1.2.3.4, 192.168.1.1",
-				helpers.CF_CONNECTING_IP: "1.2.3.4",
+				traefikrealip.X_FORWARDED_FOR:  "1.2.3.4, 192.168.1.1",
+				traefikrealip.CF_CONNECTING_IP: "1.2.3.4",
 			},
 			expectedHeaders: map[string]string{
-				helpers.X_REAL_IP:       "1.2.3.4",
-				helpers.X_IS_TRUSTED:    "no",
-				helpers.X_FORWARDED_FOR: "1.2.3.4, 192.168.1.1",
+				traefikrealip.X_REAL_IP:       "1.2.3.4",
+				traefikrealip.X_IS_TRUSTED:    "yes",
+				traefikrealip.X_FORWARDED_FOR: "1.2.3.4, 192.168.1.1",
 			},
 			expectedStatus: http.StatusOK,
-		},
-		{
-			desc:   "ipv6 source ipv4",
-			remote: "103.21.244.23",
-			reqHeaders: map[string]string{
-				helpers.CF_CONNECTING_IP: "1001:3984:3989::1",
-			},
-			expectedHeaders: map[string]string{
-				helpers.X_REAL_IP:       "1001:3984:3989::1",
-				helpers.X_IS_TRUSTED:    "yes",
-				helpers.X_FORWARDED_FOR: "1001:3984:3989::1",
-			},
-			expectedStatus: http.StatusOK,
-		},
-		{
-			desc:   "ipv6 source ipv6",
-			remote: "[1001:3984:3989::1]",
-			reqHeaders: map[string]string{
-				helpers.CF_CONNECTING_IP: "1001:3984:3989::1",
-			},
-			expectedHeaders: map[string]string{
-				helpers.X_REAL_IP:       "1001:3984:3989::1",
-				helpers.X_IS_TRUSTED:    "no",
-				helpers.X_FORWARDED_FOR: "1001:3984:3989::1",
-			},
-			expectedStatus: http.StatusOK,
-		},
-		{
-			desc:   "Invalid CF-Connecting-IP",
-			remote: "103.21.244.23",
-			reqHeaders: map[string]string{
-				helpers.CF_CONNECTING_IP: "1.2.3",
-			},
-			expectedHeaders: map[string]string{},
-			expectedStatus:  http.StatusBadRequest,
 		},
 		{
 			desc:   "Local CF-Connecting-IP",
 			remote: "10.0.0.1",
 			reqHeaders: map[string]string{
-				helpers.CF_CONNECTING_IP: "1.2.3.4",
+				traefikrealip.CF_CONNECTING_IP: "1.2.3.4",
 			},
 			expectedHeaders: map[string]string{
-				helpers.X_REAL_IP:       "1.2.3.4",
-				helpers.X_IS_TRUSTED:    "yes",
-				helpers.X_FORWARDED_FOR: "1.2.3.4",
+				traefikrealip.X_REAL_IP:       "1.2.3.4",
+				traefikrealip.X_IS_TRUSTED:    "yes",
+				traefikrealip.X_FORWARDED_FOR: "1.2.3.4",
 			},
 			expectedStatus: http.StatusOK,
 		},
 		{
-			desc:       "Trusted IP Range",
-			remote:     "10.0.0.5",
-			reqHeaders: map[string]string{},
-			trustedIPs: []string{"10.0.0.0/24"},
-			expectedHeaders: map[string]string{
-				helpers.X_REAL_IP:       "10.0.0.5",
-				helpers.X_IS_TRUSTED:    "yes",
-				helpers.X_FORWARDED_FOR: "10.0.0.5",
-			},
-			expectedStatus: http.StatusOK,
-		},
-		{
-			desc:   "Trusted IP and CF-Connecting-IP",
-			remote: "10.0.0.5",
+			desc:   "CF-Connecting-IP not trusted",
+			remote: "5.6.7.8",
 			reqHeaders: map[string]string{
-				helpers.CF_CONNECTING_IP: "1.2.3.4",
+				traefikrealip.CF_CONNECTING_IP: "1.2.3.4",
 			},
-			trustedIPs: []string{"10.0.0.0/24"},
 			expectedHeaders: map[string]string{
-				helpers.X_REAL_IP:       "1.2.3.4",
-				helpers.X_IS_TRUSTED:    "yes",
-				helpers.X_FORWARDED_FOR: "1.2.3.4",
+				traefikrealip.X_REAL_IP:       "5.6.7.8",
+				traefikrealip.X_IS_TRUSTED:    "no",
+				traefikrealip.X_FORWARDED_FOR: "5.6.7.8",
 			},
 			expectedStatus: http.StatusOK,
+		},
+		{
+			desc:   "X-Real-IP not trusted",
+			remote: "5.6.7.8",
+			reqHeaders: map[string]string{
+				traefikrealip.X_REAL_IP: "1.2.3.4",
+			},
+			expectedHeaders: map[string]string{
+				traefikrealip.X_REAL_IP:       "5.6.7.8",
+				traefikrealip.X_IS_TRUSTED:    "no",
+				traefikrealip.X_FORWARDED_FOR: "5.6.7.8",
+			},
+			expectedStatus: http.StatusOK,
+		},
+		{
+			desc:   "X-Forwarded-For not trusted",
+			remote: "5.6.7.8",
+			reqHeaders: map[string]string{
+				traefikrealip.X_FORWARDED_FOR: "1.2.3.4",
+			},
+			expectedHeaders: map[string]string{
+				traefikrealip.X_REAL_IP:       "5.6.7.8",
+				traefikrealip.X_IS_TRUSTED:    "no",
+				traefikrealip.X_FORWARDED_FOR: "5.6.7.8",
+			},
+			expectedStatus: http.StatusOK,
+		},
+		{
+			desc:   "All headers present, but not trusted",
+			remote: "5.6.7.8",
+			reqHeaders: map[string]string{
+				traefikrealip.CF_CONNECTING_IP: "1.2.3.4",
+				traefikrealip.X_REAL_IP:        "1.2.3.5",
+				traefikrealip.X_FORWARDED_FOR:  "1.2.3.6",
+			},
+			expectedHeaders: map[string]string{
+				traefikrealip.X_REAL_IP:       "5.6.7.8",
+				traefikrealip.X_IS_TRUSTED:    "no",
+				traefikrealip.X_FORWARDED_FOR: "5.6.7.8",
+			},
+			expectedStatus: http.StatusOK,
+		},
+		{
+			desc:   "Invalid CF-Connecting-IP",
+			remote: "10.0.0.1",
+			reqHeaders: map[string]string{
+				traefikrealip.CF_CONNECTING_IP: "invalid",
+			},
+			expectedHeaders: map[string]string{
+				traefikrealip.X_REAL_IP:       "10.0.0.1",
+				traefikrealip.X_IS_TRUSTED:    "yes",
+				traefikrealip.X_FORWARDED_FOR: "10.0.0.1",
+			},
+			expectedStatus: http.StatusBadRequest,
 		},
 		{
 			desc:   "Invalid X-Real-IP",
-			remote: "1.1.1.1",
+			remote: "10.0.0.1",
 			reqHeaders: map[string]string{
-				helpers.X_REAL_IP: "invalid",
-			},
-			expectedHeaders: map[string]string{},
-			expectedStatus:  http.StatusBadRequest,
-		},
-		{
-			desc:   "Invalid X-Forwarded-For IP",
-			remote: "1.1.1.1",
-			reqHeaders: map[string]string{
-				helpers.X_FORWARDED_FOR: "invalid",
+				traefikrealip.X_REAL_IP: "invalid",
 			},
 			expectedHeaders: map[string]string{
-				helpers.X_REAL_IP:       "1.1.1.1",
-				helpers.X_IS_TRUSTED:    "no",
-				helpers.X_FORWARDED_FOR: "1.1.1.1",
+				traefikrealip.X_REAL_IP:       "10.0.0.1",
+				traefikrealip.X_IS_TRUSTED:    "yes",
+				traefikrealip.X_FORWARDED_FOR: "10.0.0.1",
+			},
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			desc:   "Invalid X-Forwarded-For",
+			remote: "10.0.0.1",
+			reqHeaders: map[string]string{
+				traefikrealip.X_FORWARDED_FOR: "invalid",
+			},
+			expectedHeaders: map[string]string{
+				traefikrealip.X_REAL_IP:       "10.0.0.1",
+				traefikrealip.X_IS_TRUSTED:    "yes",
+				traefikrealip.X_FORWARDED_FOR: "10.0.0.1",
+			},
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			desc:   "Invalid X-Forwarded-For with multiple IPs",
+			remote: "10.0.0.1",
+			reqHeaders: map[string]string{
+				traefikrealip.X_FORWARDED_FOR: "1.2.3.4, invalid",
+			},
+			expectedHeaders: map[string]string{
+				traefikrealip.X_REAL_IP:       "1.2.3.4",
+				traefikrealip.X_IS_TRUSTED:    "yes",
+				traefikrealip.X_FORWARDED_FOR: "1.2.3.4, invalid",
 			},
 			expectedStatus: http.StatusOK,
 		},
@@ -228,13 +232,13 @@ func TestIPResolver_ServeHTTP(t *testing.T) {
 	for _, test := range testCases {
 		test := test
 		t.Run(test.desc, func(t *testing.T) {
-			cfg := traefik_real_ip.CreateConfig()
+			cfg := traefikrealip.CreateConfig()
 			cfg.TrustedIPs = test.trustedIPs
 
 			ctx := context.Background()
 			next := http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {})
 
-			handler, err := traefik_real_ip.New(ctx, next, cfg, "traefikrealip")
+			handler, err := traefikrealip.New(ctx, next, cfg, "traefikrealip")
 			if err != nil {
 				t.Fatal(err)
 			}

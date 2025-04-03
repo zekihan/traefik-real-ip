@@ -8,8 +8,6 @@ import (
 	"net/http"
 	"runtime/debug"
 	"strings"
-
-	"github.com/zekihan/traefik-real-ip/helpers"
 )
 
 // Config the plugin configuration.
@@ -32,7 +30,7 @@ type IPResolver struct {
 	conf          *Config
 	name          string
 	trustedIPNets []*net.IPNet
-	logger        *helpers.PluginLogger
+	logger        *PluginLogger
 }
 
 // New created a new IPResolver plugin.
@@ -63,7 +61,7 @@ func New(_ context.Context, next http.Handler, config *Config, name string) (htt
 		logLevel.Set(slog.LevelInfo)
 	}
 
-	pluginLogger := helpers.NewPluginLogger(name, logLevel)
+	pluginLogger := NewPluginLogger(name, logLevel)
 
 	return &IPResolver{
 		next:          next,
@@ -102,40 +100,45 @@ func (a *IPResolver) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	a.logger.Debug("IP is trusted", slog.String("ip", srcIP.String()), slog.Bool("is_trusted", isTrusted))
 
 	if isTrusted {
-		req.Header.Set(helpers.X_IS_TRUSTED, "yes")
+		req.Header.Set(X_IS_TRUSTED, "yes")
 	} else {
-		req.Header.Set(helpers.X_IS_TRUSTED, "no")
+		req.Header.Set(X_IS_TRUSTED, "no")
 	}
 
-	req.Header.Set(helpers.X_REAL_IP, ip.String())
-	a.logger.Debug("Setting header", slog.String("header", helpers.X_REAL_IP), slog.String("value", ip.String()))
+	req.Header.Set(X_REAL_IP, ip.String())
+	a.logger.Debug("Setting header", slog.String("header", X_REAL_IP), slog.String("value", ip.String()))
 
-	if req.Header.Get(helpers.X_FORWARDED_FOR) == "" {
-		req.Header.Set(helpers.X_FORWARDED_FOR, ip.String())
-		a.logger.Debug("Setting header", slog.String("header", helpers.X_FORWARDED_FOR), slog.String("value", ip.String()))
-	} else {
-		newVals := make([]string, 0)
-		newVals = append(newVals, ip.String())
-		vals := strings.Split(req.Header.Get(helpers.X_FORWARDED_FOR), ",")
-		for _, val := range vals {
-			if strings.TrimSpace(val) == "" {
-				continue
+	if isTrusted {
+		if req.Header.Get(X_FORWARDED_FOR) == "" {
+			req.Header.Set(X_FORWARDED_FOR, ip.String())
+			a.logger.Debug("Setting header", slog.String("header", X_FORWARDED_FOR), slog.String("value", ip.String()))
+		} else {
+			newVals := make([]string, 0)
+			newVals = append(newVals, ip.String())
+			vals := strings.Split(req.Header.Get(X_FORWARDED_FOR), ",")
+			for _, val := range vals {
+				if strings.TrimSpace(val) == "" {
+					continue
+				}
+				if strings.TrimSpace(val) == ip.String() {
+					continue
+				}
+				newVals = append(newVals, strings.TrimSpace(val))
 			}
-			if strings.TrimSpace(val) == ip.String() {
-				continue
-			}
-			newVals = append(newVals, strings.TrimSpace(val))
+			req.Header.Set(X_FORWARDED_FOR, strings.Join(newVals, ", "))
+			a.logger.Debug("Setting header", slog.String("header", X_FORWARDED_FOR), slog.String("value", strings.Join(newVals, ", ")))
 		}
-		req.Header.Set(helpers.X_FORWARDED_FOR, strings.Join(newVals, ", "))
-		a.logger.Debug("Setting header", slog.String("header", helpers.X_FORWARDED_FOR), slog.String("value", strings.Join(newVals, ", ")))
+	} else {
+		req.Header.Set(X_FORWARDED_FOR, srcIP.String())
+		a.logger.Debug("Setting header", slog.String("header", X_FORWARDED_FOR), slog.String("value", srcIP.String()))
 	}
 
 	a.next.ServeHTTP(rw, req)
 }
 
 func (a *IPResolver) getRealIP(srcIP net.IP, req *http.Request) (net.IP, error) {
-	cfConnectingIPHeader := req.Header.Values(helpers.CF_CONNECTING_IP)
-	a.logger.Debug("Checking header", slog.String("header", helpers.CF_CONNECTING_IP), slog.Bool("exists", len(cfConnectingIPHeader) > 0))
+	cfConnectingIPHeader := req.Header.Values(CF_CONNECTING_IP)
+	a.logger.Debug("Checking header", slog.String("header", CF_CONNECTING_IP), slog.Bool("exists", len(cfConnectingIPHeader) > 0))
 	if len(cfConnectingIPHeader) > 0 {
 		if a.isTrustedIP(srcIP) {
 			cfIP, err := a.handleCFIP(req)
@@ -144,12 +147,12 @@ func (a *IPResolver) getRealIP(srcIP net.IP, req *http.Request) (net.IP, error) 
 			}
 			return cfIP, nil
 		} else {
-			a.logger.Debug("Source IP is not trusted, ignoring header", slog.String("ip", srcIP.String()), slog.String("header", helpers.CF_CONNECTING_IP))
+			a.logger.Debug("Source IP is not trusted, ignoring header", slog.String("ip", srcIP.String()), slog.String("header", CF_CONNECTING_IP))
 		}
 	}
 
-	xRealIPHeader := req.Header.Values(helpers.X_REAL_IP)
-	a.logger.Debug("Checking header", slog.String("header", helpers.X_REAL_IP), slog.Bool("exists", len(xRealIPHeader) > 0))
+	xRealIPHeader := req.Header.Values(X_REAL_IP)
+	a.logger.Debug("Checking header", slog.String("header", X_REAL_IP), slog.Bool("exists", len(xRealIPHeader) > 0))
 	if len(xRealIPHeader) > 0 {
 		if a.isTrustedIP(srcIP) {
 			xRealIP, err := a.handleXRealIP(req)
@@ -158,12 +161,12 @@ func (a *IPResolver) getRealIP(srcIP net.IP, req *http.Request) (net.IP, error) 
 			}
 			return xRealIP, nil
 		} else {
-			a.logger.Debug("Source IP is not trusted, ignoring header", slog.String("ip", srcIP.String()), slog.String("header", helpers.X_REAL_IP))
+			a.logger.Debug("Source IP is not trusted, ignoring header", slog.String("ip", srcIP.String()), slog.String("header", X_REAL_IP))
 		}
 	}
 
-	xForwardedForHeader := req.Header.Values(helpers.X_FORWARDED_FOR)
-	a.logger.Debug("Checking header", slog.String("header", helpers.X_FORWARDED_FOR), slog.Bool("exists", len(xForwardedForHeader) > 0))
+	xForwardedForHeader := req.Header.Values(X_FORWARDED_FOR)
+	a.logger.Debug("Checking header", slog.String("header", X_FORWARDED_FOR), slog.Bool("exists", len(xForwardedForHeader) > 0))
 	if len(xForwardedForHeader) > 0 {
 		if a.isTrustedIP(srcIP) {
 			xForwardedFor, err := a.handleXForwardedFor(req)
@@ -172,7 +175,7 @@ func (a *IPResolver) getRealIP(srcIP net.IP, req *http.Request) (net.IP, error) 
 			}
 			return xForwardedFor, nil
 		} else {
-			a.logger.Debug("Source IP is not trusted, ignoring header", slog.String("ip", srcIP.String()), slog.String("header", helpers.X_FORWARDED_FOR))
+			a.logger.Debug("Source IP is not trusted, ignoring header", slog.String("ip", srcIP.String()), slog.String("header", X_FORWARDED_FOR))
 		}
 	}
 
@@ -181,7 +184,7 @@ func (a *IPResolver) getRealIP(srcIP net.IP, req *http.Request) (net.IP, error) 
 }
 
 func (a *IPResolver) handleXForwardedFor(req *http.Request) (net.IP, error) {
-	xForwardedForList := req.Header.Values(helpers.X_FORWARDED_FOR)
+	xForwardedForList := req.Header.Values(X_FORWARDED_FOR)
 	if len(xForwardedForList) == 1 {
 		xForwardedForValuesStr := strings.Split(xForwardedForList[0], ",")
 		xForwardedForValues := make([]net.IP, 0)
@@ -196,7 +199,7 @@ func (a *IPResolver) handleXForwardedFor(req *http.Request) (net.IP, error) {
 			}
 		}
 		for _, xForwardedForValue := range xForwardedForValues {
-			if !helpers.IsLocalIP(xForwardedForValue) {
+			if !a.isLocalIP(xForwardedForValue) {
 				a.logger.Debug("Found valid X-Forwarded-For IP", slog.String("ip", xForwardedForValue.String()))
 				return xForwardedForValue, nil
 			}
@@ -209,7 +212,7 @@ func (a *IPResolver) handleXForwardedFor(req *http.Request) (net.IP, error) {
 }
 
 func (a *IPResolver) handleXRealIP(req *http.Request) (net.IP, error) {
-	realIPs := req.Header.Values(helpers.X_REAL_IP)
+	realIPs := req.Header.Values(X_REAL_IP)
 	if len(realIPs) == 1 {
 		tempIP := net.ParseIP(realIPs[0])
 		if tempIP == nil {
@@ -223,7 +226,7 @@ func (a *IPResolver) handleXRealIP(req *http.Request) (net.IP, error) {
 }
 
 func (a *IPResolver) handleCFIP(req *http.Request) (net.IP, error) {
-	cfIPs := req.Header.Values(helpers.CF_CONNECTING_IP)
+	cfIPs := req.Header.Values(CF_CONNECTING_IP)
 	if len(cfIPs) == 1 {
 		tempIP := net.ParseIP(cfIPs[0])
 		if tempIP == nil {
@@ -247,20 +250,4 @@ func (a *IPResolver) getSrcIP(req *http.Request) (net.IP, error) {
 	}
 	a.logger.Debug("Parsed source IP", slog.String("ip", ip.String()))
 	return ip, nil
-}
-
-func (a *IPResolver) isTrustedIP(ip net.IP) bool {
-	if helpers.IsLocalIP(ip) {
-		return true
-	}
-	for _, ipNet := range a.trustedIPNets {
-		if ipNet.Contains(ip) {
-			return true
-		}
-	}
-	if helpers.IsCFIP(ip) {
-		return true
-	}
-	a.logger.Debug("IP is not trusted", slog.String("ip", ip.String()))
-	return false
 }
