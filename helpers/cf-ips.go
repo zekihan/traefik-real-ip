@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"time"
 )
 
 var CF_IPS = make([]*net.IPNet, 0)
@@ -38,7 +39,10 @@ func getCFIP6() error {
 }
 
 func getCFIP(url string) error {
-	response, err := http.Get(url)
+	client := &http.Client{
+		Timeout: 10 * time.Second,
+	}
+	response, err := client.Get(url)
 	if err != nil {
 		return err
 	}

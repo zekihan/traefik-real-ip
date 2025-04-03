@@ -17,4 +17,7 @@ summary: Traefik Real IP
 # Configuration data for your plugin.
 # This is mandatory,
 # and Plugins Catalog will try to execute the plugin with the data you provide as part of its startup validity tests.
-testData: {}
+testData:
+  trustedIPs:
+    - "127.0.0.1/32"
+  logLevel: info

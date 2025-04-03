@@ -2,11 +2,13 @@ package traefik_real_ip_test
 
 import (
 	"context"
-	"github.com/zekihan/traefik-real-ip"
-	"github.com/zekihan/traefik-real-ip/helpers"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+
+	traefik_real_ip "github.com/zekihan/traefik-real-ip"
+	"github.com/zekihan/traefik-real-ip/helpers"
 )
 
 func TestIPResolver_ServeHTTP(t *testing.T) {
@@ -16,6 +18,7 @@ func TestIPResolver_ServeHTTP(t *testing.T) {
 		reqHeaders      map[string]string
 		expectedHeaders map[string]string
 		expectedStatus  int
+		trustedIPs      []string
 	}{
 		{
 			desc:       "No headers",
@@ -173,11 +176,60 @@ func TestIPResolver_ServeHTTP(t *testing.T) {
 			},
 			expectedStatus: http.StatusOK,
 		},
+		{
+			desc:       "Trusted IP Range",
+			remote:     "10.0.0.5",
+			reqHeaders: map[string]string{},
+			trustedIPs: []string{"10.0.0.0/24"},
+			expectedHeaders: map[string]string{
+				helpers.X_REAL_IP:       "10.0.0.5",
+				helpers.X_IS_TRUSTED:    "yes",
+				helpers.X_FORWARDED_FOR: "10.0.0.5",
+			},
+			expectedStatus: http.StatusOK,
+		},
+		{
+			desc:   "Trusted IP and CF-Connecting-IP",
+			remote: "10.0.0.5",
+			reqHeaders: map[string]string{
+				helpers.CF_CONNECTING_IP: "1.2.3.4",
+			},
+			trustedIPs: []string{"10.0.0.0/24"},
+			expectedHeaders: map[string]string{
+				helpers.X_REAL_IP:       "1.2.3.4",
+				helpers.X_IS_TRUSTED:    "yes",
+				helpers.X_FORWARDED_FOR: "1.2.3.4",
+			},
+			expectedStatus: http.StatusOK,
+		},
+		{
+			desc:   "Invalid X-Real-IP",
+			remote: "1.1.1.1",
+			reqHeaders: map[string]string{
+				helpers.X_REAL_IP: "invalid",
+			},
+			expectedHeaders: map[string]string{},
+			expectedStatus:  http.StatusBadRequest,
+		},
+		{
+			desc:   "Invalid X-Forwarded-For IP",
+			remote: "1.1.1.1",
+			reqHeaders: map[string]string{
+				helpers.X_FORWARDED_FOR: "invalid",
+			},
+			expectedHeaders: map[string]string{
+				helpers.X_REAL_IP:       "1.1.1.1",
+				helpers.X_IS_TRUSTED:    "no",
+				helpers.X_FORWARDED_FOR: "1.1.1.1",
+			},
+			expectedStatus: http.StatusOK,
+		},
 	}
 	for _, test := range testCases {
 		test := test
 		t.Run(test.desc, func(t *testing.T) {
 			cfg := traefik_real_ip.CreateConfig()
+			cfg.TrustedIPs = test.trustedIPs
 
 			ctx := context.Background()
 			next := http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {})
@@ -226,6 +278,6 @@ func assertHeader(t *testing.T, req *http.Request, key, expected string) {
 		return
 	}
 	if headerValues[0] != expected {
-		t.Errorf("expected header %s to be %s, got %s", key, expected, headerValues[0])
+		t.Errorf("expected header %s to be %s, got %s", key, expected, strings.Join(headerValues, ", "))
 	}
 }
