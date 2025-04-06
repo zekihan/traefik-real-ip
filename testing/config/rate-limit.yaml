@@ -1,0 +1,12 @@
+http:
+  middlewares:
+    rate-limit-1s:
+      rateLimit:
+        average: 1000
+        period: 1
+        burst: 100
+    rate-limit-1m:
+      rateLimit:
+        average: 10000
+        period: 1m
+        burst: 1000

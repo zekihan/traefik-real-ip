@@ -1,0 +1,5 @@
+http:
+  middlewares:
+    inflightreq:
+      inFlightReq:
+        amount: 100

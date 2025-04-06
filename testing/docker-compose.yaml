@@ -17,7 +17,7 @@ services:
       - "traefik.http.services.traefik-real-ip_whoami.loadbalancer.passhostheader=true"
 
       - "traefik.http.routers.traefik-real-ip_whoami.service=traefik-real-ip_whoami"
-      - "traefik.http.routers.traefik-real-ip_whoami.middlewares=traefik-real-ip@file"
+      - "traefik.http.routers.traefik-real-ip_whoami.middlewares=standard@file"
       - "traefik.http.routers.traefik-real-ip_whoami.rule=Method(`GET`)"
       - "traefik.http.routers.traefik-real-ip_whoami.entrypoints=web"
 

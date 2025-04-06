@@ -1,0 +1,4 @@
+http:
+  middlewares:
+    content-type:
+      contentType: { }

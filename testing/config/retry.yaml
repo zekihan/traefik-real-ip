@@ -1,0 +1,6 @@
+http:
+  middlewares:
+    retry:
+      retry:
+        attempts: 3
+        initialInterval: 100ms

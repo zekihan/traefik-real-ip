@@ -1,0 +1,9 @@
+http:
+  middlewares:
+    compress:
+      compress:
+        encodings:
+          - zstd
+          - br
+          - gzip
+        minResponseBodyBytes: 1024
