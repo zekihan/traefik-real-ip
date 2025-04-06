@@ -33,7 +33,7 @@ services:
     ports:
       - "4008:80"
     volumes:
-      - ./traefik.toml:/etc/traefik/traefik.toml
+      - ./traefik.yaml:/etc/traefik/traefik.yaml
       - ./config:/etc/traefik/mconfig
       - ../:/plugins-local/src/github.com/zekihan/traefik-real-ip:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro

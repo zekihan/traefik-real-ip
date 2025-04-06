@@ -1,0 +1,46 @@
+global:
+  checkNewVersion: false
+  sendAnonymousUsage: false
+
+entryPoints:
+  web:
+    address: :80
+
+ping:
+  entryPoint: traefik
+
+providers:
+  docker:
+    endpoint: unix:///var/run/docker.sock
+    exposedByDefault: false
+    network: traefik-real-ip_proxy
+    watch: true
+    constraints: Label(`traefik-real-ip.enable`,`true`)
+  file:
+    directory: /etc/traefik/mconfig/
+    watch: true
+
+traefikLog:
+  filePath: /var/logs/traefik/traefik.log
+  format: json
+
+log:
+  level: DEBUG
+  format: common
+
+accessLog:
+  bufferingSize: 0
+  format: common
+  filters:
+    statusCodes:
+      - "100-800"
+    retryAttempts: true
+    minDuration: 0ms
+
+  fields:
+    defaultMode: keep
+
+experimental:
+  localPlugins:
+    traefik-real-ip:
+      moduleName: github.com/zekihan/traefik-real-ip
