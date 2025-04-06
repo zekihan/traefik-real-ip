@@ -24,9 +24,9 @@ func TestIPResolver_ServeHTTP(t *testing.T) {
 			remote:     "1.2.3.4",
 			reqHeaders: map[string]string{},
 			expectedHeaders: map[string]string{
-				traefikrealip.X_REAL_IP:       "1.2.3.4",
-				traefikrealip.X_IS_TRUSTED:    "no",
-				traefikrealip.X_FORWARDED_FOR: "1.2.3.4",
+				traefikrealip.XRealIP:       "1.2.3.4",
+				traefikrealip.XIsTrusted:    "no",
+				traefikrealip.XForwardedFor: "1.2.3.4",
 			},
 			expectedStatus: http.StatusOK,
 		},
@@ -34,12 +34,12 @@ func TestIPResolver_ServeHTTP(t *testing.T) {
 			desc:   "CF-Connecting-IP",
 			remote: "103.21.244.23",
 			reqHeaders: map[string]string{
-				traefikrealip.CF_CONNECTING_IP: "1.2.3.4",
+				traefikrealip.CfConnectingIP: "1.2.3.4",
 			},
 			expectedHeaders: map[string]string{
-				traefikrealip.X_REAL_IP:       "1.2.3.4",
-				traefikrealip.X_IS_TRUSTED:    "yes",
-				traefikrealip.X_FORWARDED_FOR: "1.2.3.4",
+				traefikrealip.XRealIP:       "1.2.3.4",
+				traefikrealip.XIsTrusted:    "yes",
+				traefikrealip.XForwardedFor: "1.2.3.4",
 			},
 			expectedStatus: http.StatusOK,
 		},
@@ -47,12 +47,12 @@ func TestIPResolver_ServeHTTP(t *testing.T) {
 			desc:   "X-Real-IP",
 			remote: "10.0.0.1",
 			reqHeaders: map[string]string{
-				traefikrealip.X_REAL_IP: "1.2.3.4",
+				traefikrealip.XRealIP: "1.2.3.4",
 			},
 			expectedHeaders: map[string]string{
-				traefikrealip.X_REAL_IP:       "1.2.3.4",
-				traefikrealip.X_IS_TRUSTED:    "yes",
-				traefikrealip.X_FORWARDED_FOR: "1.2.3.4",
+				traefikrealip.XRealIP:       "1.2.3.4",
+				traefikrealip.XIsTrusted:    "yes",
+				traefikrealip.XForwardedFor: "1.2.3.4",
 			},
 			expectedStatus: http.StatusOK,
 		},
@@ -60,12 +60,12 @@ func TestIPResolver_ServeHTTP(t *testing.T) {
 			desc:   "X-Forwarded-For",
 			remote: "10.0.0.1",
 			reqHeaders: map[string]string{
-				traefikrealip.X_FORWARDED_FOR: "1.2.3.4",
+				traefikrealip.XForwardedFor: "1.2.3.4",
 			},
 			expectedHeaders: map[string]string{
-				traefikrealip.X_REAL_IP:       "1.2.3.4",
-				traefikrealip.X_IS_TRUSTED:    "yes",
-				traefikrealip.X_FORWARDED_FOR: "1.2.3.4",
+				traefikrealip.XRealIP:       "1.2.3.4",
+				traefikrealip.XIsTrusted:    "yes",
+				traefikrealip.XForwardedFor: "1.2.3.4",
 			},
 			expectedStatus: http.StatusOK,
 		},
@@ -73,12 +73,12 @@ func TestIPResolver_ServeHTTP(t *testing.T) {
 			desc:   "X-Forwarded-For with multiple IPs",
 			remote: "10.0.0.1",
 			reqHeaders: map[string]string{
-				traefikrealip.X_FORWARDED_FOR: "1.2.3.4, 1.1.1.1",
+				traefikrealip.XForwardedFor: "1.2.3.4, 1.1.1.1",
 			},
 			expectedHeaders: map[string]string{
-				traefikrealip.X_REAL_IP:       "1.2.3.4",
-				traefikrealip.X_IS_TRUSTED:    "yes",
-				traefikrealip.X_FORWARDED_FOR: "1.2.3.4, 1.1.1.1",
+				traefikrealip.XRealIP:       "1.2.3.4",
+				traefikrealip.XIsTrusted:    "yes",
+				traefikrealip.XForwardedFor: "1.2.3.4, 1.1.1.1",
 			},
 			expectedStatus: http.StatusOK,
 		},
@@ -86,12 +86,12 @@ func TestIPResolver_ServeHTTP(t *testing.T) {
 			desc:   "X-Forwarded-For with private IP",
 			remote: "10.0.0.1",
 			reqHeaders: map[string]string{
-				traefikrealip.X_FORWARDED_FOR: "192.168.1.1, 1.2.3.4",
+				traefikrealip.XForwardedFor: "192.168.1.1, 1.2.3.4",
 			},
 			expectedHeaders: map[string]string{
-				traefikrealip.X_REAL_IP:       "1.2.3.4",
-				traefikrealip.X_IS_TRUSTED:    "yes",
-				traefikrealip.X_FORWARDED_FOR: "1.2.3.4, 192.168.1.1",
+				traefikrealip.XRealIP:       "1.2.3.4",
+				traefikrealip.XIsTrusted:    "yes",
+				traefikrealip.XForwardedFor: "1.2.3.4, 192.168.1.1",
 			},
 			expectedStatus: http.StatusOK,
 		},
@@ -99,13 +99,13 @@ func TestIPResolver_ServeHTTP(t *testing.T) {
 			desc:   "X-Forwarded-For with private IP",
 			remote: "10.0.0.1",
 			reqHeaders: map[string]string{
-				traefikrealip.X_FORWARDED_FOR:  "1.2.3.4, 192.168.1.1",
-				traefikrealip.CF_CONNECTING_IP: "1.2.3.4",
+				traefikrealip.XForwardedFor:  "1.2.3.4, 192.168.1.1",
+				traefikrealip.CfConnectingIP: "1.2.3.4",
 			},
 			expectedHeaders: map[string]string{
-				traefikrealip.X_REAL_IP:       "1.2.3.4",
-				traefikrealip.X_IS_TRUSTED:    "yes",
-				traefikrealip.X_FORWARDED_FOR: "1.2.3.4, 192.168.1.1",
+				traefikrealip.XRealIP:       "1.2.3.4",
+				traefikrealip.XIsTrusted:    "yes",
+				traefikrealip.XForwardedFor: "1.2.3.4, 192.168.1.1",
 			},
 			expectedStatus: http.StatusOK,
 		},
@@ -113,12 +113,12 @@ func TestIPResolver_ServeHTTP(t *testing.T) {
 			desc:   "Local CF-Connecting-IP",
 			remote: "10.0.0.1",
 			reqHeaders: map[string]string{
-				traefikrealip.CF_CONNECTING_IP: "1.2.3.4",
+				traefikrealip.CfConnectingIP: "1.2.3.4",
 			},
 			expectedHeaders: map[string]string{
-				traefikrealip.X_REAL_IP:       "1.2.3.4",
-				traefikrealip.X_IS_TRUSTED:    "yes",
-				traefikrealip.X_FORWARDED_FOR: "1.2.3.4",
+				traefikrealip.XRealIP:       "1.2.3.4",
+				traefikrealip.XIsTrusted:    "yes",
+				traefikrealip.XForwardedFor: "1.2.3.4",
 			},
 			expectedStatus: http.StatusOK,
 		},
@@ -126,12 +126,12 @@ func TestIPResolver_ServeHTTP(t *testing.T) {
 			desc:   "CF-Connecting-IP not trusted",
 			remote: "5.6.7.8",
 			reqHeaders: map[string]string{
-				traefikrealip.CF_CONNECTING_IP: "1.2.3.4",
+				traefikrealip.CfConnectingIP: "1.2.3.4",
 			},
 			expectedHeaders: map[string]string{
-				traefikrealip.X_REAL_IP:       "5.6.7.8",
-				traefikrealip.X_IS_TRUSTED:    "no",
-				traefikrealip.X_FORWARDED_FOR: "5.6.7.8",
+				traefikrealip.XRealIP:       "5.6.7.8",
+				traefikrealip.XIsTrusted:    "no",
+				traefikrealip.XForwardedFor: "5.6.7.8",
 			},
 			expectedStatus: http.StatusOK,
 		},
@@ -139,12 +139,12 @@ func TestIPResolver_ServeHTTP(t *testing.T) {
 			desc:   "X-Real-IP not trusted",
 			remote: "5.6.7.8",
 			reqHeaders: map[string]string{
-				traefikrealip.X_REAL_IP: "1.2.3.4",
+				traefikrealip.XRealIP: "1.2.3.4",
 			},
 			expectedHeaders: map[string]string{
-				traefikrealip.X_REAL_IP:       "5.6.7.8",
-				traefikrealip.X_IS_TRUSTED:    "no",
-				traefikrealip.X_FORWARDED_FOR: "5.6.7.8",
+				traefikrealip.XRealIP:       "5.6.7.8",
+				traefikrealip.XIsTrusted:    "no",
+				traefikrealip.XForwardedFor: "5.6.7.8",
 			},
 			expectedStatus: http.StatusOK,
 		},
@@ -152,12 +152,12 @@ func TestIPResolver_ServeHTTP(t *testing.T) {
 			desc:   "X-Forwarded-For not trusted",
 			remote: "5.6.7.8",
 			reqHeaders: map[string]string{
-				traefikrealip.X_FORWARDED_FOR: "1.2.3.4",
+				traefikrealip.XForwardedFor: "1.2.3.4",
 			},
 			expectedHeaders: map[string]string{
-				traefikrealip.X_REAL_IP:       "5.6.7.8",
-				traefikrealip.X_IS_TRUSTED:    "no",
-				traefikrealip.X_FORWARDED_FOR: "5.6.7.8",
+				traefikrealip.XRealIP:       "5.6.7.8",
+				traefikrealip.XIsTrusted:    "no",
+				traefikrealip.XForwardedFor: "5.6.7.8",
 			},
 			expectedStatus: http.StatusOK,
 		},
@@ -165,14 +165,14 @@ func TestIPResolver_ServeHTTP(t *testing.T) {
 			desc:   "All headers present, but not trusted",
 			remote: "5.6.7.8",
 			reqHeaders: map[string]string{
-				traefikrealip.CF_CONNECTING_IP: "1.2.3.4",
-				traefikrealip.X_REAL_IP:        "1.2.3.5",
-				traefikrealip.X_FORWARDED_FOR:  "1.2.3.6",
+				traefikrealip.CfConnectingIP: "1.2.3.4",
+				traefikrealip.XRealIP:        "1.2.3.5",
+				traefikrealip.XForwardedFor:  "1.2.3.6",
 			},
 			expectedHeaders: map[string]string{
-				traefikrealip.X_REAL_IP:       "5.6.7.8",
-				traefikrealip.X_IS_TRUSTED:    "no",
-				traefikrealip.X_FORWARDED_FOR: "5.6.7.8",
+				traefikrealip.XRealIP:       "5.6.7.8",
+				traefikrealip.XIsTrusted:    "no",
+				traefikrealip.XForwardedFor: "5.6.7.8",
 			},
 			expectedStatus: http.StatusOK,
 		},
@@ -180,12 +180,12 @@ func TestIPResolver_ServeHTTP(t *testing.T) {
 			desc:   "Invalid CF-Connecting-IP",
 			remote: "10.0.0.1",
 			reqHeaders: map[string]string{
-				traefikrealip.CF_CONNECTING_IP: "invalid",
+				traefikrealip.CfConnectingIP: "invalid",
 			},
 			expectedHeaders: map[string]string{
-				traefikrealip.X_REAL_IP:       "10.0.0.1",
-				traefikrealip.X_IS_TRUSTED:    "yes",
-				traefikrealip.X_FORWARDED_FOR: "10.0.0.1",
+				traefikrealip.XRealIP:       "10.0.0.1",
+				traefikrealip.XIsTrusted:    "yes",
+				traefikrealip.XForwardedFor: "10.0.0.1",
 			},
 			expectedStatus: http.StatusBadRequest,
 		},
@@ -193,12 +193,12 @@ func TestIPResolver_ServeHTTP(t *testing.T) {
 			desc:   "Invalid X-Real-IP",
 			remote: "10.0.0.1",
 			reqHeaders: map[string]string{
-				traefikrealip.X_REAL_IP: "invalid",
+				traefikrealip.XRealIP: "invalid",
 			},
 			expectedHeaders: map[string]string{
-				traefikrealip.X_REAL_IP:       "10.0.0.1",
-				traefikrealip.X_IS_TRUSTED:    "yes",
-				traefikrealip.X_FORWARDED_FOR: "10.0.0.1",
+				traefikrealip.XRealIP:       "10.0.0.1",
+				traefikrealip.XIsTrusted:    "yes",
+				traefikrealip.XForwardedFor: "10.0.0.1",
 			},
 			expectedStatus: http.StatusBadRequest,
 		},
@@ -206,12 +206,12 @@ func TestIPResolver_ServeHTTP(t *testing.T) {
 			desc:   "Invalid X-Forwarded-For",
 			remote: "10.0.0.1",
 			reqHeaders: map[string]string{
-				traefikrealip.X_FORWARDED_FOR: "invalid",
+				traefikrealip.XForwardedFor: "invalid",
 			},
 			expectedHeaders: map[string]string{
-				traefikrealip.X_REAL_IP:       "10.0.0.1",
-				traefikrealip.X_IS_TRUSTED:    "yes",
-				traefikrealip.X_FORWARDED_FOR: "10.0.0.1",
+				traefikrealip.XRealIP:       "10.0.0.1",
+				traefikrealip.XIsTrusted:    "yes",
+				traefikrealip.XForwardedFor: "10.0.0.1",
 			},
 			expectedStatus: http.StatusBadRequest,
 		},
@@ -219,12 +219,12 @@ func TestIPResolver_ServeHTTP(t *testing.T) {
 			desc:   "Invalid X-Forwarded-For with multiple IPs",
 			remote: "10.0.0.1",
 			reqHeaders: map[string]string{
-				traefikrealip.X_FORWARDED_FOR: "1.2.3.4, invalid",
+				traefikrealip.XForwardedFor: "1.2.3.4, invalid",
 			},
 			expectedHeaders: map[string]string{
-				traefikrealip.X_REAL_IP:       "1.2.3.4",
-				traefikrealip.X_IS_TRUSTED:    "yes",
-				traefikrealip.X_FORWARDED_FOR: "1.2.3.4, invalid",
+				traefikrealip.XRealIP:       "1.2.3.4",
+				traefikrealip.XIsTrusted:    "yes",
+				traefikrealip.XForwardedFor: "1.2.3.4, invalid",
 			},
 			expectedStatus: http.StatusOK,
 		},
@@ -259,7 +259,7 @@ func TestIPResolver_ServeHTTP(t *testing.T) {
 			handler.ServeHTTP(recorder, req)
 
 			if recorder.Result().StatusCode != test.expectedStatus {
-				t.Errorf("expected status %d, got %d. Body: [%s]", test.expectedStatus, recorder.Result().StatusCode, string(recorder.Body.Bytes()))
+				t.Errorf("expected status %d, got %d. Body: [%s]", test.expectedStatus, recorder.Result().StatusCode, recorder.Body.String())
 				return
 			}
 

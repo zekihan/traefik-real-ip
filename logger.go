@@ -53,7 +53,7 @@ func ErrorAttr(val any) slog.Attr {
 
 	return slog.Group("error",
 		slog.String("exception.message", errMsg),
-		slog.String("exception.stacktrace", fmt.Sprintf("%s", stack[:n])),
+		slog.String("exception.stacktrace", string(stack[:n])),
 	)
 }
 

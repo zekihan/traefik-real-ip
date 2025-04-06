@@ -48,9 +48,9 @@ func New(_ context.Context, next http.Handler, config *Config, name string) (htt
 
 	trustedIPNets := make([]*net.IPNet, 0)
 	if config.ThrustLocal {
-		localIPs, err := ipResolver.getLocalIPsHardcoded()
-		if err != nil {
-			return nil, fmt.Errorf("error getting local IPs: %v", err)
+		localIPs := ipResolver.getLocalIPs()
+		if len(localIPs) == 0 {
+			return nil, fmt.Errorf("error getting local IPs")
 		}
 		trustedIPNets = append(trustedIPNets, localIPs...)
 	}
@@ -117,22 +117,22 @@ func (a *IPResolver) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	a.logger.Debug("IP is trusted", slog.String("ip", srcIP.String()), slog.Bool("is_trusted", isTrusted))
 
 	if isTrusted {
-		req.Header.Set(X_IS_TRUSTED, "yes")
+		req.Header.Set(XIsTrusted, "yes")
 	} else {
-		req.Header.Set(X_IS_TRUSTED, "no")
+		req.Header.Set(XIsTrusted, "no")
 	}
 
-	req.Header.Set(X_REAL_IP, ip.String())
-	a.logger.Debug("Setting header", slog.String("header", X_REAL_IP), slog.String("value", ip.String()))
+	req.Header.Set(XRealIP, ip.String())
+	a.logger.Debug("Setting header", slog.String("header", XRealIP), slog.String("value", ip.String()))
 
 	if isTrusted {
-		if req.Header.Get(X_FORWARDED_FOR) == "" {
-			req.Header.Set(X_FORWARDED_FOR, ip.String())
-			a.logger.Debug("Setting header", slog.String("header", X_FORWARDED_FOR), slog.String("value", ip.String()))
+		if req.Header.Get(XForwardedFor) == "" {
+			req.Header.Set(XForwardedFor, ip.String())
+			a.logger.Debug("Setting header", slog.String("header", XForwardedFor), slog.String("value", ip.String()))
 		} else {
 			newVals := make([]string, 0)
 			newVals = append(newVals, ip.String())
-			vals := strings.Split(req.Header.Get(X_FORWARDED_FOR), ",")
+			vals := strings.Split(req.Header.Get(XForwardedFor), ",")
 			for _, val := range vals {
 				if strings.TrimSpace(val) == "" {
 					continue
@@ -142,12 +142,12 @@ func (a *IPResolver) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 				}
 				newVals = append(newVals, strings.TrimSpace(val))
 			}
-			req.Header.Set(X_FORWARDED_FOR, strings.Join(newVals, ", "))
-			a.logger.Debug("Setting header", slog.String("header", X_FORWARDED_FOR), slog.String("value", strings.Join(newVals, ", ")))
+			req.Header.Set(XForwardedFor, strings.Join(newVals, ", "))
+			a.logger.Debug("Setting header", slog.String("header", XForwardedFor), slog.String("value", strings.Join(newVals, ", ")))
 		}
 	} else {
-		req.Header.Set(X_FORWARDED_FOR, srcIP.String())
-		a.logger.Debug("Setting header", slog.String("header", X_FORWARDED_FOR), slog.String("value", srcIP.String()))
+		req.Header.Set(XForwardedFor, srcIP.String())
+		a.logger.Debug("Setting header", slog.String("header", XForwardedFor), slog.String("value", srcIP.String()))
 	}
 
 	a.next.ServeHTTP(rw, req)
@@ -161,18 +161,18 @@ func (a *IPResolver) handlePanic(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	if errors.Is(err, http.ErrAbortHandler) {
-		retryCount, ok := req.Context().Value("retryCount").(int)
+		retryCount, ok := req.Context().Value(RetryCountKey).(int)
 		if ok {
 			if retryCount > 3 {
-				a.logger.Info("Max retry count reached, aborting", slog.Int("retryCount", retryCount), ErrorAttrWithoutStack(err))
+				a.logger.Info("Max retry count reached, aborting", slog.Int(string(RetryCountKey), retryCount), ErrorAttrWithoutStack(err))
 				a.next.ServeHTTP(rw, req)
 				return // suppress
 			}
 		} else {
 			retryCount = 1
 		}
-		a.logger.Info("Retrying request", slog.Int("retryCount", retryCount))
-		req = req.WithContext(context.WithValue(req.Context(), "retryCount", retryCount+1))
+		a.logger.Info("Retrying request", slog.Int(string(RetryCountKey), retryCount))
+		req = req.WithContext(context.WithValue(req.Context(), RetryCountKey, retryCount+1))
 		a.ServeHTTP(rw, req)
 		return // suppress
 	}

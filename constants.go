@@ -1,8 +1,14 @@
 package traefik_real_ip
 
 const (
-	CF_CONNECTING_IP = "CF-Connecting-IP"
-	X_REAL_IP        = "X-Real-IP"
-	X_FORWARDED_FOR  = "X-Forwarded-For"
-	X_IS_TRUSTED     = "X-Is-Trusted"
+	CfConnectingIP = "CF-Connecting-IP"
+	XRealIP        = "X-Real-IP"
+	XForwardedFor  = "X-Forwarded-For"
+	XIsTrusted     = "X-Is-Trusted"
+)
+
+type ContextKey string
+
+const (
+	RetryCountKey ContextKey = "retryCount"
 )
