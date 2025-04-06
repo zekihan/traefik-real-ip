@@ -41,6 +41,7 @@ accessLog:
     defaultMode: keep
 
 experimental:
+  abortOnPluginFailure: true
   localPlugins:
     traefik-real-ip:
       moduleName: github.com/zekihan/traefik-real-ip
