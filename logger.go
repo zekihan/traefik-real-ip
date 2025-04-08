@@ -6,7 +6,17 @@ import (
 	"log/slog"
 	"os"
 	"runtime"
+	"runtime/debug"
 )
+
+func init() {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+		AddSource:   false,
+		Level:       slog.LevelDebug,
+		ReplaceAttr: replaceAttr,
+	}))
+	slog.SetDefault(logger)
+}
 
 type PluginLogger struct {
 	logger     *slog.Logger
@@ -48,7 +58,7 @@ func ErrorAttr(val any) slog.Attr {
 		errMsg = err.Error()
 	}
 
-	stack := make([]byte, 4096)
+	stack := debug.Stack()
 	n := runtime.Stack(stack, false)
 
 	return slog.Group("error",
