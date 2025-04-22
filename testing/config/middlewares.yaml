@@ -6,8 +6,6 @@ http:
           - retry
           - content-type
           - security
-          - rate-limit-1s
-          - rate-limit-1m
           - inflightreq
           - traefik-real-ip
           - compress
