@@ -25,7 +25,7 @@ services:
       - "traefik-real-ip.enable=true"
 
   traefik:
-    image: docker.io/traefik:v3.4.3@sha256:f3de2b96ec6b1cc987619c4d1d65d7e8140862eb0bbfc5f0e2e563691e8787d8
+    image: docker.io/traefik:v3.4.4@sha256:8f9e60388ee298f2611be718bab2bb962ac00aa8e425f19f14eb7c704c077514
     container_name: traefik-real-ip_traefik
     networks:
       - proxy
