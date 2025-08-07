@@ -1,3 +1,4 @@
+//nolint:staticcheck // no reason
 package traefik_real_ip
 
 import (
@@ -77,24 +78,32 @@ invalid-cidr
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create test server
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				w.WriteHeader(tt.statusCode)
-				w.Write([]byte(tt.responseBody))
-			}))
+			server := httptest.NewServer(
+				http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					w.WriteHeader(tt.statusCode)
+
+					_, err := w.Write([]byte(tt.responseBody))
+					if err != nil {
+						t.Fatalf("Failed to write response: %v", err)
+					}
+				}),
+			)
 			defer server.Close()
 
 			// Test the function
-			ips, err := resolver.getCloudFlareIPFromURL(server.URL)
+			ips, err := resolver.getCloudFlareIPFromURL(t.Context(), server.URL)
 
 			if tt.expectError {
 				if err == nil {
 					t.Errorf("Expected error but got none")
 				}
+
 				return
 			}
 
 			if err != nil {
 				t.Errorf("Unexpected error: %v", err)
+
 				return
 			}
 
@@ -124,14 +133,22 @@ func TestIPResolver_getCloudFlareIPs(t *testing.T) {
 
 	// Create mock servers for IPv4 and IPv6
 	ipv4Server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(200)
-		w.Write([]byte("173.245.48.0/20\n103.21.244.0/22"))
+		w.WriteHeader(http.StatusOK)
+
+		_, err := w.Write([]byte("173.245.48.0/20\n103.21.244.0/22"))
+		if err != nil {
+			t.Fatalf("Failed to write response: %v", err)
+		}
 	}))
 	defer ipv4Server.Close()
 
 	ipv6Server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(200)
-		w.Write([]byte("2400:cb00::/32\n2606:4700::/32"))
+		w.WriteHeader(http.StatusOK)
+
+		_, err := w.Write([]byte("2400:cb00::/32\n2606:4700::/32"))
+		if err != nil {
+			t.Fatalf("Failed to write response: %v", err)
+		}
 	}))
 	defer ipv6Server.Close()
 
@@ -146,9 +163,9 @@ func TestIPResolver_getCloudFlareIPs(t *testing.T) {
 		}
 
 		// First call
-		ips1 := resolver.getCloudFlareIPs()
+		ips1 := resolver.getCloudFlareIPs(t.Context())
 		// Second call should return the same instance
-		ips2 := resolver.getCloudFlareIPs()
+		ips2 := resolver.getCloudFlareIPs(t.Context())
 
 		if len(ips1) != len(ips2) {
 			t.Errorf("Singleton behavior failed: different lengths %d vs %d", len(ips1), len(ips2))
@@ -176,16 +193,21 @@ func TestCIDRParsing(t *testing.T) {
 	}
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(200)
+		w.WriteHeader(http.StatusOK)
+
 		response := ""
 		for _, cidr := range validCIDRs {
 			response += cidr + "\n"
 		}
-		w.Write([]byte(response))
+
+		_, err := w.Write([]byte(response))
+		if err != nil {
+			t.Fatalf("Failed to write response: %v", err)
+		}
 	}))
 	defer server.Close()
 
-	ips, err := resolver.getCloudFlareIPFromURL(server.URL)
+	ips, err := resolver.getCloudFlareIPFromURL(t.Context(), server.URL)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -198,6 +220,7 @@ func TestCIDRParsing(t *testing.T) {
 	for i, ipNet := range ips {
 		if ipNet == nil {
 			t.Errorf("IP network at index %d is nil", i)
+
 			continue
 		}
 
@@ -226,13 +249,19 @@ func TestHTTPErrorHandling(t *testing.T) {
 
 	for _, tt := range errorTests {
 		t.Run(tt.name, func(t *testing.T) {
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				w.WriteHeader(tt.statusCode)
-				w.Write([]byte("Error response"))
-			}))
+			server := httptest.NewServer(
+				http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					w.WriteHeader(tt.statusCode)
+
+					_, err := w.Write([]byte("Error response"))
+					if err != nil {
+						t.Fatalf("Failed to write response: %v", err)
+					}
+				}),
+			)
 			defer server.Close()
 
-			_, err := resolver.getCloudFlareIPFromURL(server.URL)
+			_, err := resolver.getCloudFlareIPFromURL(t.Context(), server.URL)
 			if err == nil {
 				t.Errorf("Expected error for status code %d but got none", tt.statusCode)
 			}
@@ -246,5 +275,6 @@ func mustParseCIDR(cidr string) *net.IPNet {
 	if err != nil {
 		panic(err)
 	}
+
 	return ipNet
 }

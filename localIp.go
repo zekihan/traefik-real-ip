@@ -1,6 +1,9 @@
+//nolint:staticcheck // no reason
 package traefik_real_ip
 
 import (
+	"context"
+	"fmt"
 	"log/slog"
 	"net"
 	"sync"
@@ -11,20 +14,23 @@ var (
 	localIPsOnce     sync.Once
 )
 
-func (a *IPResolver) getLocalIPs() []*net.IPNet {
+func (resolver *IPResolver) getLocalIPs(ctx context.Context) []*net.IPNet {
 	localIPsOnce.Do(func() {
 		localIPsInstance = make([]*net.IPNet, 0)
-		ips, err := a.getLocalIPsHardcoded()
+
+		ips, err := resolver.getLocalIPsHardcoded(ctx)
 		if err != nil {
-			a.logger.Error("Error fetching local IPs", slog.Any("error", err))
+			resolver.logger.ErrorContext(ctx, "Error fetching local IPs", slog.Any("error", err))
 			panic(err)
 		}
+
 		localIPsInstance = append(localIPsInstance, ips...)
 	})
+
 	return localIPsInstance
 }
 
-func (a *IPResolver) getLocalIPsHardcoded() ([]*net.IPNet, error) {
+func (resolver *IPResolver) getLocalIPsHardcoded(ctx context.Context) ([]*net.IPNet, error) {
 	ips := make([]*net.IPNet, 0)
 
 	localIPRanges := []string{
@@ -39,10 +45,18 @@ func (a *IPResolver) getLocalIPsHardcoded() ([]*net.IPNet, error) {
 	for _, cidr := range localIPRanges {
 		_, block, err := net.ParseCIDR(cidr)
 		if err != nil {
-			a.logger.Error("Error parsing CIDR", slog.String("cidr", cidr), slog.Any("error", err))
-			return ips, err
+			resolver.logger.ErrorContext(
+				ctx,
+				"Error parsing CIDR",
+				slog.String("cidr", cidr),
+				slog.Any("error", err),
+			)
+
+			return ips, fmt.Errorf("error parsing CIDR %s: %w", cidr, err)
 		}
+
 		ips = append(ips, block)
 	}
+
 	return ips, nil
 }

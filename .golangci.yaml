@@ -1,0 +1,372 @@
+version: "2"
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  fix: false
+
+run:
+  timeout: 1m
+  tests: true
+  allow-parallel-runners: true
+  # Default: 0 (automatically set to match Linux container CPU quota and
+  concurrency: 0
+
+formatters:
+  enable:
+    - gci
+    - gofmt
+    - gofumpt
+    - golines
+    - swaggo
+  settings:
+    gci:
+      sections:
+        - standard # Standard section: captures all standard packages.
+        - default # Default section: contains all imports that could not be matched to another section type.
+        - prefix(github.com/org/project) # Custom section: groups all imports with the specified Prefix.
+        - blank # Blank section: contains all blank imports. This section is not present unless explicitly enabled.
+        - dot # Dot section: contains all dot imports. This section is not present unless explicitly enabled.
+        - alias # Alias section: contains all alias imports. This section is not present unless explicitly enabled.
+        - localmodule # Local module section: contains all local packages. This section is not present unless explicitly enabled.
+    gofmt:
+      simplify: true
+      rewrite-rules:
+        - pattern: 'interface{}'
+          replacement: 'any'
+        - pattern: 'a[b:len(a)]'
+          replacement: 'a[b:]'
+    gofumpt:
+      module-path: github.com/zekihan/traefik-real-ip
+      extra-rules: true
+    goimports:
+      local-prefixes:
+        - github.com/zekihan/traefik-real-ip
+    golines:
+      max-len: 100
+      tab-len: 4
+      shorten-comments: true
+      reformat-tags: true
+      chain-split-dots: true
+  exclusions:
+    generated: lax
+
+linters:
+  default: all
+  disable:
+    - cyclop # duplicate of gocyclo
+    - exhaustruct
+    - gochecknoglobals
+    - gochecknoinits
+    - wsl
+    - goheader
+    - testpackage
+  settings:
+    depguard:
+      rules:
+        main:
+          deny:
+            - pkg: math/rand$
+              desc: use math/rand/v2
+            - pkg: github.com/pkg/errors
+              desc: Should be replaced by standard lib errors package
+            - pkg: io/ioutil
+              desc: deprecated — use `os.ReadFile`, `io.NopCloser`, etc.
+            - pkg: github.com/stretchr/testify
+              desc: avoid in core logic — use cmp or standard assertions
+    errcheck:
+      check-type-assertions: true
+      check-blank: true
+      exclude-functions:
+        - fmt.Fprintln
+      verbose: true
+    errorlint:
+      errorf: true
+      errorf-multi: true
+      asserts: true
+      comparison: true
+      allowed-errors: [ ]
+      allowed-errors-wildcard: [ ]
+    exhaustive:
+      check:
+        - switch
+        - map
+      default-case-required: true
+    forbidigo:
+      forbid:
+        - pattern: ^log\.Print.*$
+          msg: Use structured logger (e.g., zap, slog), not log.Print*
+
+        - pattern: ^log\.Fatal.*$
+          msg: Do not use log.Fatal — it exits the program. Prefer error handling.
+
+        - pattern: ^os\.Exit$
+          msg: Do not use os.Exit — handle errors gracefully instead.
+
+        - pattern: ^time\.Sleep$
+          msg: Avoid time.Sleep in production code — use context with timeout or ticker.
+
+        - pattern: ^runtime\.Goexit$
+          msg: Avoid abrupt goroutine exits.
+
+        - pattern: ^context\.TODO$
+          msg: Use context.WithCancel/Timeout/Background, not context.TODO in prod.
+    funlen:
+      lines: -1
+      statements: 120
+    gochecksumtype:
+      default-signifies-exhaustive: false
+      include-shared-interfaces: true
+    goconst:
+      min-len: 3
+      min-occurrences: 4
+    gocritic:
+      enable-all: true
+      disabled-checks:
+        - unnamedResult
+    gocyclo:
+      min-complexity: 14
+    godox:
+      keywords:
+        - FIXME
+    gomoddirectives:
+      toolchain-pattern: go1\.\d+\.\d+$
+      tool-forbidden: true
+      go-version-pattern: ^1\.\d+\.\d+$
+      replace-allow-list: [ ]
+    gosec:
+      config:
+        G104:
+          fmt:
+            - Fscanf
+          os:
+            - Close
+            - Setenv
+            - Unsetenv
+    govet:
+      enable-all: true
+    godot:
+      scope: noinline
+      period: true
+      capital: true
+    iface:
+      enable:
+        - identical
+        - unused
+        - opaque
+        - unexported
+    ireturn:
+      allow:
+        - anon
+        - error
+        - empty
+        - stdlib
+        - UniversalClient
+    paralleltest:
+      ignore-missing: true
+    varnamelen:
+      max-distance: 6
+      min-name-length: 2
+      check-receiver: true
+      check-return: true
+      check-type-param: true
+      ignore-type-assert-ok: true
+      ignore-map-index-ok: true
+      ignore-chan-recv-ok: true
+      ignore-names:
+        - err
+      ignore-decls:
+        - c echo.Context
+        - t testing.T
+        - f *foo.Bar
+        - f func()
+        - e error
+        - i int
+        - j int
+        - const C
+        - T any
+        - m map[string]int
+        - r *http.Request
+        - w http.ResponseWriter
+    importas:
+      no-unaliased: true
+      alias:
+        # Standard Kubernetes rewrites:
+        - pkg: k8s.io/api/core/v1
+          alias: corev1
+        - pkg: k8s.io/api/networking/v1
+          alias: netv1
+        - pkg: k8s.io/api/networking/v1beta1
+          alias: netv1beta1
+        - pkg: k8s.io/api/admission/v1
+          alias: admv1
+        - pkg: k8s.io/api/admission/v1beta1
+          alias: admv1beta1
+        - pkg: k8s.io/api/extensions/v1beta1
+          alias: extv1beta1
+        - pkg: k8s.io/apimachinery/pkg/apis/meta/v1
+          alias: metav1
+        - pkg: k8s.io/apimachinery/pkg/types
+          alias: ktypes
+        - pkg: k8s.io/apimachinery/pkg/api/errors
+          alias: kerror
+        - pkg: k8s.io/client-go/kubernetes
+          alias: kclientset
+        - pkg: k8s.io/client-go/informers
+          alias: kinformers
+        - pkg: k8s.io/client-go/testing
+          alias: ktesting
+        - pkg: k8s.io/apimachinery/pkg/runtime/schema
+          alias: kschema
+        - pkg: k8s.io/client-go/kubernetes/scheme
+          alias: kscheme
+        - pkg: k8s.io/apimachinery/pkg/version
+          alias: kversion
+        - pkg: k8s.io/client-go/kubernetes/fake
+          alias: kubefake
+        - pkg: k8s.io/client-go/discovery/fake
+          alias: discoveryfake
+
+        # Kubernetes Gateway rewrites:
+        - pkg: sigs.k8s.io/gateway-api/pkg/client/clientset/gateway/versioned
+          alias: gateclientset
+        - pkg: sigs.k8s.io/gateway-api/pkg/client/informers/gateway/externalversions
+          alias: gateinformers
+        - pkg: sigs.k8s.io/gateway-api/apis/v1alpha2
+          alias: gatev1alpha2
+    misspell:
+      locale: US
+    revive:
+      rules:
+        - name: struct-tag
+        - name: blank-imports
+        - name: context-as-argument
+        - name: context-keys-type
+        - name: dot-imports
+        - name: error-return
+        - name: error-strings
+        - name: error-naming
+        - name: exported
+          disabled: true
+        - name: if-return
+        - name: increment-decrement
+        - name: var-naming
+          arguments:
+            - [ ] # AllowList
+            - [ ] # DenyList
+            - - skip-package-name-checks: true
+        - name: var-declaration
+        - name: package-comments
+          disabled: true
+        - name: range
+        - name: receiver-naming
+        - name: time-naming
+        - name: unexported-return
+        - name: indent-error-flow
+        - name: errorf
+        - name: empty-block
+        - name: superfluous-else
+        - name: unused-parameter
+          disabled: true
+        - name: unreachable-code
+        - name: redefines-builtin-id
+    tagalign:
+      align: true
+      sort: true
+      order:
+        - description
+        - json
+        - toml
+        - yaml
+        - yml
+        - label
+        - label-slice-as-struct
+        - file
+        - kv
+        - export
+    usestdlibvars:
+      http-method: true
+      http-status-code: true
+      time-date-month: true
+      time-weekday: true
+      time-month: true
+      time-layout: true
+      crypto-hash: true
+      default-rpc-path: true
+      sql-isolation-level: true
+      tls-signature-scheme: true
+      constant-kind: true
+    usetesting:
+      os-create-temp: true
+      os-mkdir-temp: true
+      os-setenv: true
+      os-temp-dir: true
+      os-chdir: true
+      context-background: true
+      context-todo: true
+    unconvert:
+      fast-math: true
+      safe: true
+    testifylint:
+      disable:
+        - suite-dont-use-pkg
+        - require-error
+        - go-require
+    perfsprint:
+      integer-format: true
+      int-conversion: true
+      error-format: true
+      err-error: true
+      errorf: true
+      string-format: true
+      sprintf1: true
+      strconcat: true
+      bool-format: true
+      hex-format: true
+    sloglint:
+      kv-only: false
+      attr-only: true
+      no-mixed-args: true
+      no-global: ""
+      context: scope
+      msg-style: capitalized
+      key-naming-case: camel
+      args-on-sep-lines: true
+    staticcheck:
+      checks:
+        - all
+  exclusions:
+    generated: lax
+    presets:
+      - common-false-positives
+      - comments
+      - std-error-handling
+    rules:
+      - path: (.+)_test.go
+        linters:
+          - canonicalheader
+          - fatcontext
+          - funlen
+          - goconst
+          - godot
+          - errcheck
+          - dupl
+      - path: (.+)_test.go
+        text: ' always receives '
+        linters:
+          - unparam
+      - linters:
+          - revive
+        path: 'utils?/*'
+        text: 'var-naming: avoid meaningless package names'
+      - path: main.go
+        text: 'Do not use os.Exit — handle errors gracefully instead.'
+        linters:
+          - forbidigo
+
+output:
+  sort-order:
+    - file
+    - severity
+    - linter
+  show-stats: true

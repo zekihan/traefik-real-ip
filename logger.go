@@ -1,3 +1,4 @@
+//nolint:staticcheck // no reason
 package traefik_real_ip
 
 import (
@@ -32,24 +33,34 @@ func NewPluginLogger(pluginName string, logLevel *slog.LevelVar) *PluginLogger {
 
 	handler := slog.NewTextHandler(os.Stdout, opts)
 	slog.SetDefault(slog.New(handler))
+
 	return &PluginLogger{
 		logger:     slog.Default(),
 		pluginName: pluginName,
 	}
 }
 
-func replaceAttr(_ []string, a slog.Attr) slog.Attr {
-	switch a.Value.Kind() {
+func replaceAttr(_ []string, attr slog.Attr) slog.Attr {
+	switch attr.Value.Kind() {
 	case slog.KindAny:
-		switch v := a.Value.Any().(type) {
-		case error:
+		if v, ok := attr.Value.Any().(error); ok {
 			return ErrorAttr(v)
 		}
+	case slog.KindBool,
+		slog.KindDuration,
+		slog.KindFloat64,
+		slog.KindInt64,
+		slog.KindString,
+		slog.KindTime,
+		slog.KindUint64,
+		slog.KindGroup,
+		slog.KindLogValuer:
+		return attr
 	default:
-		return a
+		return attr
 	}
 
-	return a
+	return attr
 }
 
 func ErrorAttr(val any) slog.Attr {
@@ -93,22 +104,42 @@ func (l *PluginLogger) Log(ctx context.Context, level slog.Level, msg string, ar
 	l.logger.Log(ctx, level, msg, args...)
 }
 
+// DebugContext logs at [LevelDebug].
+func (l *PluginLogger) DebugContext(ctx context.Context, msg string, attrs ...any) {
+	l.Log(ctx, slog.LevelDebug, msg, attrs...)
+}
+
 // Debug logs at [LevelDebug].
 func (l *PluginLogger) Debug(msg string, attrs ...any) {
-	l.Log(context.Background(), slog.LevelDebug, msg, attrs...)
+	l.DebugContext(context.Background(), msg, attrs...)
+}
+
+// InfoContext logs at [LevelInfo].
+func (l *PluginLogger) InfoContext(ctx context.Context, msg string, attrs ...any) {
+	l.Log(ctx, slog.LevelInfo, msg, attrs...)
 }
 
 // Info logs at [LevelInfo].
 func (l *PluginLogger) Info(msg string, attrs ...any) {
-	l.Log(context.Background(), slog.LevelInfo, msg, attrs...)
+	l.InfoContext(context.Background(), msg, attrs...)
+}
+
+// WarnContext logs at [LevelWarn].
+func (l *PluginLogger) WarnContext(ctx context.Context, msg string, attrs ...any) {
+	l.Log(ctx, slog.LevelWarn, msg, attrs...)
 }
 
 // Warn logs at [LevelWarn].
 func (l *PluginLogger) Warn(msg string, attrs ...any) {
-	l.Log(context.Background(), slog.LevelWarn, msg, attrs...)
+	l.WarnContext(context.Background(), msg, attrs...)
+}
+
+// ErrorContext logs at [LevelError].
+func (l *PluginLogger) ErrorContext(ctx context.Context, msg string, attrs ...any) {
+	l.Log(ctx, slog.LevelError, msg, attrs...)
 }
 
 // Error logs at [LevelError].
 func (l *PluginLogger) Error(msg string, attrs ...any) {
-	l.Log(context.Background(), slog.LevelError, msg, attrs...)
+	l.ErrorContext(context.Background(), msg, attrs...)
 }

@@ -8,11 +8,11 @@ A Traefik middleware plugin that extracts the real client IP address from variou
 
 ## Overview
 
-Traefik Real IP extracts and validates the actual client IP address from commonly used headers such as `X-Forwarded-For`, `X-Real-IP`, and `CF-Connecting-IP`. This plugin is particularly useful when Traefik is behind a CDN, proxy, or load balancer like Cloudflare.
+Traefik Real IP extracts and validates the actual client IP address from commonly used headers such as `X-Forwarded-For`, `X-Real-IP`, and `Cf-Connecting-Ip`. This plugin is particularly useful when Traefik is behind a CDN, proxy, or load balancer like Cloudflare.
 
 ## Features
 
-- Extracts real IP from `CF-Connecting-IP`, `X-Real-IP`, and `X-Forwarded-For` headers
+- Extracts real IP from `Cf-Connecting-Ip`, `X-Real-IP`, and `X-Forwarded-For` headers
 - Validates whether the source IP is trusted before accepting header values
 - Built-in support for Cloudflare IP ranges
 - Supports local/private IP ranges
@@ -81,7 +81,7 @@ http:
 1. The plugin extracts the source IP from the incoming request
 2. It checks if the source IP is in the trusted IPs list
 3. If trusted, it looks for real IP in headers:
-   - First checks `CF-Connecting-IP`
+   - First checks `Cf-Connecting-Ip`
    - Then checks `X-Real-IP`
    - Finally checks `X-Forwarded-For`
 4. It updates the request headers with the discovered real IP

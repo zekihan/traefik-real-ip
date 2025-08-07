@@ -1,3 +1,4 @@
+//nolint:staticcheck // no reason
 package traefik_real_ip
 
 import (
@@ -64,7 +65,7 @@ func TestIPResolver_isTrustedIP(t *testing.T) {
 				t.Fatalf("failed to parse IP: %s", tt.ip)
 			}
 
-			result := resolver.isTrustedIP(ip)
+			result := resolver.isTrustedIP(t.Context(), ip)
 			if result != tt.expected {
 				t.Errorf("isTrustedIP(%s) = %v, want %v", tt.ip, result, tt.expected)
 			}
@@ -157,7 +158,7 @@ func TestIPResolver_isTrustedIP_EmptyTrustedNets(t *testing.T) {
 	}
 
 	ip := net.ParseIP("192.168.1.1")
-	result := resolver.isTrustedIP(ip)
+	result := resolver.isTrustedIP(t.Context(), ip)
 
 	if result != false {
 		t.Errorf("isTrustedIP with empty trusted nets should return false, got %v", result)

@@ -1,3 +1,4 @@
+//nolint:staticcheck // no reason
 package traefik_real_ip
 
 import (
@@ -15,26 +16,26 @@ func TestIPResolver_getRealIP(t *testing.T) {
 	}
 
 	trustedIPNets := make([]*net.IPNet, 0)
-	trustedIPNets = append(trustedIPNets, ipResolver.getLocalIPs()...)
-	trustedIPNets = append(trustedIPNets, ipResolver.getCloudFlareIPs()...)
+	trustedIPNets = append(trustedIPNets, ipResolver.getLocalIPs(t.Context())...)
+	trustedIPNets = append(trustedIPNets, ipResolver.getCloudFlareIPs(t.Context())...)
 
 	tests := []struct {
+		headers       map[string]string
 		name          string
 		srcIP         string
-		headers       map[string]string
-		trustedCIDRs  []string
 		expectedIP    string
+		trustedCIDRs  []string
 		expectedError bool
 	}{
 		{
-			name:         "CF-Connecting-IP from trusted source",
+			name:         "Cf-Connecting-Ip from trusted source",
 			srcIP:        "103.21.244.23",
 			headers:      map[string]string{CfConnectingIP: "192.168.1.100"},
 			trustedCIDRs: []string{"1.1.1.0/24"},
 			expectedIP:   "192.168.1.100",
 		},
 		{
-			name:         "CF-Connecting-IP from untrusted source",
+			name:         "Cf-Connecting-Ip from untrusted source",
 			srcIP:        "2.2.2.2",
 			headers:      map[string]string{CfConnectingIP: "192.168.1.100"},
 			trustedCIDRs: []string{"1.1.1.0/24"},
@@ -62,7 +63,7 @@ func TestIPResolver_getRealIP(t *testing.T) {
 			expectedIP:   "203.0.113.50",
 		},
 		{
-			name:          "Invalid CF-Connecting-IP",
+			name:          "Invalid Cf-Connecting-Ip",
 			srcIP:         "192.168.1.1",
 			headers:       map[string]string{CfConnectingIP: "invalid-ip"},
 			trustedCIDRs:  []string{"1.1.1.0/24"},
@@ -77,23 +78,25 @@ func TestIPResolver_getRealIP(t *testing.T) {
 				trustedIPNets: trustedIPNets,
 			}
 
-			req, _ := http.NewRequest("GET", "/", nil)
+			req, _ := http.NewRequestWithContext(t.Context(), http.MethodGet, "/", http.NoBody)
 			for key, value := range tt.headers {
 				req.Header.Set(key, value)
 			}
 
 			srcIP := net.ParseIP(tt.srcIP)
-			result, err := resolver.getRealIP(srcIP, req)
+			result, err := resolver.getRealIP(t.Context(), srcIP, req)
 
 			if tt.expectedError {
 				if err == nil {
 					t.Errorf("Expected error but got none")
 				}
+
 				return
 			}
 
 			if err != nil {
 				t.Errorf("Unexpected error: %v", err)
+
 				return
 			}
 
@@ -151,20 +154,22 @@ func TestIPResolver_handleXForwardedFor(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req, _ := http.NewRequest("GET", "/", nil)
+			req, _ := http.NewRequestWithContext(t.Context(), http.MethodGet, "/", http.NoBody)
 			req.Header.Set(XForwardedFor, tt.headerValue)
 
-			result, err := resolver.handleXForwardedFor(req)
+			result, err := resolver.handleXForwardedFor(t.Context(), req)
 
 			if tt.expectedError {
 				if err == nil {
 					t.Errorf("Expected error but got none")
 				}
+
 				return
 			}
 
 			if err != nil {
 				t.Errorf("Unexpected error: %v", err)
+
 				return
 			}
 
@@ -207,20 +212,22 @@ func TestIPResolver_handleXRealIP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req, _ := http.NewRequest("GET", "/", nil)
+			req, _ := http.NewRequestWithContext(t.Context(), http.MethodGet, "/", http.NoBody)
 			req.Header.Set(XRealIP, tt.headerValue)
 
-			result, err := resolver.handleXRealIP(req)
+			result, err := resolver.handleXRealIP(t.Context(), req)
 
 			if tt.expectedError {
 				if err == nil {
 					t.Errorf("Expected error but got none")
 				}
+
 				return
 			}
 
 			if err != nil {
 				t.Errorf("Unexpected error: %v", err)
+
 				return
 			}
 
@@ -232,11 +239,11 @@ func TestIPResolver_handleXRealIP(t *testing.T) {
 
 	// Test multiple X-Real-IP headers (should fail)
 	t.Run("Multiple X-Real-IP headers", func(t *testing.T) {
-		req, _ := http.NewRequest("GET", "/", nil)
+		req, _ := http.NewRequestWithContext(t.Context(), http.MethodGet, "/", http.NoBody)
 		req.Header.Add(XRealIP, "203.0.113.10")
 		req.Header.Add(XRealIP, "203.0.113.11")
 
-		_, err := resolver.handleXRealIP(req)
+		_, err := resolver.handleXRealIP(t.Context(), req)
 		if err == nil {
 			t.Errorf("Expected error for multiple X-Real-IP headers")
 		}
@@ -275,20 +282,22 @@ func TestIPResolver_handleCFIP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req, _ := http.NewRequest("GET", "/", nil)
+			req, _ := http.NewRequestWithContext(t.Context(), http.MethodGet, "/", http.NoBody)
 			req.Header.Set(CfConnectingIP, tt.headerValue)
 
-			result, err := resolver.handleCFIP(req)
+			result, err := resolver.handleCFIP(t.Context(), req)
 
 			if tt.expectedError {
 				if err == nil {
 					t.Errorf("Expected error but got none")
 				}
+
 				return
 			}
 
 			if err != nil {
 				t.Errorf("Unexpected error: %v", err)
+
 				return
 			}
 
@@ -298,15 +307,15 @@ func TestIPResolver_handleCFIP(t *testing.T) {
 		})
 	}
 
-	// Test multiple CF-Connecting-IP headers (should fail)
-	t.Run("Multiple CF-Connecting-IP headers", func(t *testing.T) {
-		req, _ := http.NewRequest("GET", "/", nil)
+	// Test multiple Cf-Connecting-Ip headers (should fail)
+	t.Run("Multiple Cf-Connecting-Ip headers", func(t *testing.T) {
+		req, _ := http.NewRequestWithContext(t.Context(), http.MethodGet, "/", http.NoBody)
 		req.Header.Add(CfConnectingIP, "203.0.113.10")
 		req.Header.Add(CfConnectingIP, "203.0.113.11")
 
-		_, err := resolver.handleCFIP(req)
+		_, err := resolver.handleCFIP(t.Context(), req)
 		if err == nil {
-			t.Errorf("Expected error for multiple CF-Connecting-IP headers")
+			t.Errorf("Expected error for multiple Cf-Connecting-Ip headers")
 		}
 	})
 }
@@ -348,20 +357,22 @@ func TestIPResolver_getSrcIP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req, _ := http.NewRequest("GET", "/", nil)
+			req, _ := http.NewRequestWithContext(t.Context(), http.MethodGet, "/", http.NoBody)
 			req.RemoteAddr = tt.remoteAddr
 
-			result, err := resolver.getSrcIP(req)
+			result, err := resolver.getSrcIP(t.Context(), req)
 
 			if tt.expectedError {
 				if err == nil {
 					t.Errorf("Expected error but got none")
 				}
+
 				return
 			}
 
 			if err != nil {
 				t.Errorf("Unexpected error: %v", err)
+
 				return
 			}
 
