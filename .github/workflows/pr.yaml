@@ -1,0 +1,70 @@
+name: PR Workflow
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+
+concurrency:
+  group: pr-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+env:
+  GOPRIVATE_GITHUB_TOKEN: ${{ secrets.GOPRIVATE_GITHUB_TOKEN }}
+  GOPRIVATE: "github.com/zekihan/*"
+
+jobs:
+  pr:
+    runs-on: zekihan.traefik-real-ip
+    steps:
+      - name: Check Out The Repo
+        uses: actions/checkout@v4.2.2
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5.5.0
+        with:
+          go-version-file: go.mod
+          cache: true
+          cache-dependency-path: go.sum
+
+      - name: Set up GoReleaser
+        uses: goreleaser/goreleaser-action@v6.3.0
+        with:
+          install-only: true
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends make build-essential
+          chmod +x .github/scripts/install_build_deps.sh
+          bash .github/scripts/install_build_deps.sh
+
+      - name: Configure git for private modules
+        env:
+          GOPRIVATE_GITHUB_TOKEN: ${{ secrets.GOPRIVATE_GITHUB_TOKEN }}
+        run: git config --global url."https://user:${GOPRIVATE_GITHUB_TOKEN}@github.com".insteadOf "https://github.com"
+
+      - name: Tidy
+        run: |
+          make tidy
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v8.0.0
+
+      - name: Lint
+        run: |
+          make lint
+
+      - name: Fail if there are any changes
+        run: |
+          git diff --exit-code
+
+      - name: Test
+        run: |
+          make test

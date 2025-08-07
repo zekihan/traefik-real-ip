@@ -1,0 +1,42 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+# vim: set ts=2 sw=2 tw=0 fo=cnqoj
+
+version: 2
+
+project_name: traefik-real-ip
+
+before:
+  hooks:
+    - go fmt ./...
+    - go mod tidy
+
+builds:
+  - skip: true
+
+changelog:
+  disable: false
+  use: github
+  sort: asc
+  groups:
+    - title: Features
+      regexp: '^.*?feat(\([[:word:]]+\))??!?:.+$'
+      order: 0
+    - title: "Bug fixes"
+      regexp: '^.*?fix(\([[:word:]]+\))??!?:.+$'
+      order: 1
+    - title: "Chores"
+      regexp: '^.*?chore(\([[:word:]]+\))??!?:.+$'
+      order: 2
+    - title: "CI"
+      regexp: '^.*?ci(\([[:word:]]+\))??!?:.+$'
+      order: 3
+    - title: Others
+      order: 999
+
+release:
+  disable: false
+  draft: false
+  replace_existing_draft: true
+  prerelease: auto
+  make_latest: true
+  mode: keep-existing

@@ -1,0 +1,56 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "*"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+env:
+  GOPRIVATE_GITHUB_TOKEN: ${{ secrets.GOPRIVATE_GITHUB_TOKEN }}
+  GOPRIVATE: "github.com/zekihan/*"
+
+jobs:
+  release:
+    runs-on: zekihan.traefik-real-ip
+    steps:
+      - name: Check Out The Repo
+        uses: actions/checkout@v4.2.2
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5.5.0
+        with:
+          go-version-file: go.mod
+          cache: true
+          cache-dependency-path: go.sum
+
+      - name: Set up GoReleaser
+        uses: goreleaser/goreleaser-action@v6.3.0
+        with:
+          install-only: true
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install make
+          chmod +x .github/scripts/install_build_deps.sh
+          bash .github/scripts/install_build_deps.sh
+
+      - name: Configure git for private modules
+        env:
+          GOPRIVATE_GITHUB_TOKEN: ${{ secrets.GOPRIVATE_GITHUB_TOKEN }}
+        run: git config --global url."https://user:${GOPRIVATE_GITHUB_TOKEN}@github.com".insteadOf "https://github.com"
+
+      - name: Make build
+        run: |
+          make release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
