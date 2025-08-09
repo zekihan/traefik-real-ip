@@ -40,6 +40,11 @@ test/cover: tidy
 	./scripts/go_test.sh -v -buildvcs -vet=all -coverprofile=${TMP_DIR}/coverage.out ./...
 	${GO_EXECUTABLE} tool cover -html=${TMP_DIR}/coverage.out
 
+# release: build the binary and create a release
+.PHONY: release
+release:
+	goreleaser release --clean
+
 # new_version: create a new version
 .PHONY: new_version
 new_version:
