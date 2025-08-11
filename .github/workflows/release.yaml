@@ -21,7 +21,7 @@ jobs:
     runs-on: zekihan.traefik-real-ip
     steps:
       - name: Check Out The Repo
-        uses: actions/checkout@v4.2.2
+        uses: actions/checkout@v4.3.0
         with:
           fetch-depth: 0
 
