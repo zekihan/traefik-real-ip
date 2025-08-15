@@ -44,7 +44,6 @@ jobs:
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends make build-essential
           if [ -f .github/scripts/install_build_deps.sh ]; then
             echo "Installing build dependencies from .github/scripts/install_build_deps.sh"
-            chmod +x .github/scripts/install_build_deps.sh
             bash .github/scripts/install_build_deps.sh
           else
             echo "No build dependencies script found, skipping."
