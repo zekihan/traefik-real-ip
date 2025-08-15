@@ -1,0 +1,15 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Test" type="GoTestRunConfiguration" factoryName="Go Test">
+    <module name="traefik-real-ip"/>
+    <working_directory value="$PROJECT_DIR$"/>
+    <envs>
+      <env name="CONFIG_DIR" value="$PROJECT_DIR$"/>
+    </envs>
+    <kind value="DIRECTORY"/>
+    <package value="github.com/zekihan/traefik-real-ip"/>
+    <directory value="$PROJECT_DIR$"/>
+    <filePath value="$PROJECT_DIR$"/>
+    <framework value="gotest"/>
+    <method v="2"/>
+  </configuration>
+</component>
