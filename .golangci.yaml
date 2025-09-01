@@ -6,7 +6,7 @@ issues:
   fix: false
 
 run:
-  timeout: 1m
+  timeout: 5m
   tests: true
   allow-parallel-runners: true
   # Default: 0 (automatically set to match Linux container CPU quota and
