@@ -189,6 +189,10 @@ linters:
         - m map[string]int
         - r *http.Request
         - w http.ResponseWriter
+        - r *Reader
+        - w *Writer
+        - r *bufio.Reader
+        - w *bufio.Writer
     importas:
       no-unaliased: true
       alias:
