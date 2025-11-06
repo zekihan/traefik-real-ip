@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 )
@@ -195,12 +196,12 @@ func TestCIDRParsing(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 
-		response := ""
+		var response strings.Builder
 		for _, cidr := range validCIDRs {
-			response += cidr + "\n"
+			response.WriteString(cidr + "\n")
 		}
 
-		_, err := w.Write([]byte(response))
+		_, err := w.Write([]byte(response.String()))
 		if err != nil {
 			t.Fatalf("Failed to write response: %v", err)
 		}

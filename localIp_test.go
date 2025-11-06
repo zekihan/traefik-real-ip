@@ -36,6 +36,7 @@ func TestGetLocalIPsSingleton(t *testing.T) {
 		original := ips1[0]
 
 		ips1[0] = nil
+
 		if ips2[0] != nil {
 			t.Error("Expected both slices to reference the same underlying array")
 		}

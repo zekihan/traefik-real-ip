@@ -195,8 +195,8 @@ func (resolver *IPResolver) handleTrustedIPNets(ctx context.Context, req *http.R
 	newVals := make([]string, 0)
 	newVals = append(newVals, ip.String())
 
-	vals := strings.Split(req.Header.Get(XForwardedFor), ",")
-	for _, val := range vals {
+	vals := strings.SplitSeq(req.Header.Get(XForwardedFor), ",")
+	for val := range vals {
 		if strings.TrimSpace(val) == "" {
 			continue
 		}

@@ -118,9 +118,9 @@ func (resolver *IPResolver) getCloudFlareIPFromURL(
 
 	body := string(bytes)
 
-	lines := strings.Split(body, "\n")
+	lines := strings.SplitSeq(body, "\n")
 
-	for _, line := range lines {
+	for line := range lines {
 		cidr := strings.TrimSpace(line)
 		if cidr != "" {
 			_, block, err := net.ParseCIDR(cidr)
