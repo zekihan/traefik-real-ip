@@ -68,7 +68,15 @@ func (resolver *IPResolver) getRealIP(
 			return nil, err
 		}
 
-		return xRealIP, nil
+		if !resolver.isPrivateIP(xRealIP) {
+			return xRealIP, nil
+		}
+
+		resolver.logger.DebugContext(
+			ctx,
+			"X-Real-IP is resolved to a private IP, skipping",
+			slog.String("ip", xRealIP.String()),
+		)
 	}
 
 	xForwardedForHeader := req.Header.Values(XForwardedFor)
