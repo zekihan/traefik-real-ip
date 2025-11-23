@@ -116,6 +116,12 @@ func (resolver *IPResolver) handleXForwardedFor(
 		return nil, ErrXForwardedForInvalid
 	}
 
+	resolver.logger.DebugContext(
+		ctx,
+		"Parsing X-Forwarded-For",
+		slog.Any("value", xForwardedForList),
+	)
+
 	xForwardedForValuesStr := strings.Split(xForwardedForList[0], ",")
 	xForwardedForValues := make([]net.IP, 0)
 
@@ -157,6 +163,8 @@ func (resolver *IPResolver) handleXRealIP(ctx context.Context, req *http.Request
 		return nil, ErrXRealIPInvalid
 	}
 
+	resolver.logger.DebugContext(ctx, "Parsing X-Real-IP", slog.Any("value", realIPs))
+
 	tempIP := net.ParseIP(realIPs[0])
 	if tempIP == nil {
 		return nil, fmt.Errorf("%w in X-Real-IP: %s", ErrInvalidIPFormat, realIPs[0])
@@ -172,6 +180,8 @@ func (resolver *IPResolver) handleCFIP(ctx context.Context, req *http.Request) (
 	if len(cfIPs) != 1 {
 		return nil, ErrCfConnectingIPInvalid
 	}
+
+	resolver.logger.DebugContext(ctx, "Parsing Cf-Connecting-Ip", slog.Any("value", cfIPs))
 
 	tempIP := net.ParseIP(cfIPs[0])
 	if tempIP == nil {
