@@ -40,6 +40,11 @@ test/cover: tidy
 	./scripts/go_test.sh -v -buildvcs -vet=all -coverprofile=${TMP_DIR}/coverage.out ./...
 	${GO_EXECUTABLE} tool cover -html=${TMP_DIR}/coverage.out
 
+## test: run integration tests
+.PHONY: test/integration
+test/integration: tidy
+	./scripts/integration_test.sh -v
+
 # release: build the binary and create a release
 .PHONY: release
 release:
