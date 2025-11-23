@@ -118,6 +118,7 @@ func (resolver *IPResolver) getCloudFlareIPFromURL(
 
 	body := string(bytes)
 
+	//nolint:modernize // yaegi does not support strings.SplitSeq
 	lines := strings.Split(body, "\n")
 
 	for _, line := range lines {

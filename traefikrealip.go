@@ -195,6 +195,7 @@ func (resolver *IPResolver) handleTrustedIPNets(ctx context.Context, req *http.R
 	newVals := make([]string, 0)
 	newVals = append(newVals, ip.String())
 
+	//nolint:modernize // yaegi does not support strings.SplitSeq
 	vals := strings.Split(req.Header.Get(XForwardedFor), ",")
 	for _, val := range vals {
 		if strings.TrimSpace(val) == "" {
