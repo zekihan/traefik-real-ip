@@ -24,6 +24,19 @@ func (resolver *IPResolver) getRealIP(
 	srcIP net.IP,
 	req *http.Request,
 ) (net.IP, error) {
+	if !resolver.isTrustedIP(ctx, srcIP) {
+		resolver.logger.DebugContext(
+			ctx,
+			"Source IP is not trusted, skipping header checks",
+			slog.String("ip", srcIP.String()),
+			slog.String(CfConnectingIP, req.Header.Get(CfConnectingIP)),
+			slog.String(XRealIP, req.Header.Get(XRealIP)),
+			slog.String(XForwardedFor, req.Header.Get(XForwardedFor)),
+		)
+
+		return srcIP, nil
+	}
+
 	cfConnectingIPHeader := req.Header.Values(CfConnectingIP)
 	resolver.logger.DebugContext(
 		ctx,
@@ -33,21 +46,12 @@ func (resolver *IPResolver) getRealIP(
 	)
 
 	if len(cfConnectingIPHeader) > 0 {
-		if resolver.isTrustedIP(ctx, srcIP) {
-			cfIP, err := resolver.handleCFIP(ctx, req)
-			if err != nil {
-				return nil, err
-			}
-
-			return cfIP, nil
+		cfIP, err := resolver.handleCFIP(ctx, req)
+		if err != nil {
+			return nil, err
 		}
 
-		resolver.logger.DebugContext(
-			ctx,
-			"Source IP is not trusted, ignoring header",
-			slog.String("ip", srcIP.String()),
-			slog.String("header", CfConnectingIP),
-		)
+		return cfIP, nil
 	}
 
 	xRealIPHeader := req.Header.Values(XRealIP)
@@ -59,21 +63,12 @@ func (resolver *IPResolver) getRealIP(
 	)
 
 	if len(xRealIPHeader) > 0 {
-		if resolver.isTrustedIP(ctx, srcIP) {
-			xRealIP, err := resolver.handleXRealIP(ctx, req)
-			if err != nil {
-				return nil, err
-			}
-
-			return xRealIP, nil
+		xRealIP, err := resolver.handleXRealIP(ctx, req)
+		if err != nil {
+			return nil, err
 		}
 
-		resolver.logger.DebugContext(
-			ctx,
-			"Source IP is not trusted, ignoring header",
-			slog.String("ip", srcIP.String()),
-			slog.String("header", XRealIP),
-		)
+		return xRealIP, nil
 	}
 
 	xForwardedForHeader := req.Header.Values(XForwardedFor)
@@ -85,21 +80,12 @@ func (resolver *IPResolver) getRealIP(
 	)
 
 	if len(xForwardedForHeader) > 0 {
-		if resolver.isTrustedIP(ctx, srcIP) {
-			xForwardedFor, err := resolver.handleXForwardedFor(ctx, req)
-			if err != nil {
-				return nil, err
-			}
-
-			return xForwardedFor, nil
+		xForwardedFor, err := resolver.handleXForwardedFor(ctx, req)
+		if err != nil {
+			return nil, err
 		}
 
-		resolver.logger.DebugContext(
-			ctx,
-			"Source IP is not trusted, ignoring header",
-			slog.String("ip", srcIP.String()),
-			slog.String("header", XForwardedFor),
-		)
+		return xForwardedFor, nil
 	}
 
 	resolver.logger.DebugContext(ctx, "No trusted headers found, returning source IP")
