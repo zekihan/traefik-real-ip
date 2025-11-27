@@ -17,6 +17,7 @@ var (
 	ErrInvalidIPFormat          = errors.New("invalid IP format")
 	ErrXRealIPInvalid           = errors.New("header X-Real-IP invalid")
 	ErrCfConnectingIPInvalid    = errors.New("header Cf-Connecting-Ip not found or invalid")
+	ErrEOConnectingIPInvalid    = errors.New("header EO-Connecting-IP not found or invalid")
 )
 
 func (resolver *IPResolver) getRealIP(
@@ -30,6 +31,7 @@ func (resolver *IPResolver) getRealIP(
 			"Source IP is not trusted, skipping header checks",
 			slog.String("ip", srcIP.String()),
 			slog.String(CfConnectingIP, req.Header.Get(CfConnectingIP)),
+			slog.String(EOConnectingIP, req.Header.Get(EOConnectingIP)),
 			slog.String(XRealIP, req.Header.Get(XRealIP)),
 			slog.String(XForwardedFor, req.Header.Get(XForwardedFor)),
 		)
@@ -52,6 +54,23 @@ func (resolver *IPResolver) getRealIP(
 		}
 
 		return cfIP, nil
+	}
+
+	eoConnectingIPHeader := req.Header.Values(EOConnectingIP)
+	resolver.logger.DebugContext(
+		ctx,
+		"Checking header",
+		slog.String("header", EOConnectingIP),
+		slog.Bool("exists", len(eoConnectingIPHeader) > 0),
+	)
+
+	if len(eoConnectingIPHeader) > 0 {
+		eoIP, err := resolver.handleEOIP(ctx, req)
+		if err != nil {
+			return nil, err
+		}
+
+		return eoIP, nil
 	}
 
 	xRealIPHeader := req.Header.Values(XRealIP)
@@ -185,6 +204,28 @@ func (resolver *IPResolver) handleCFIP(ctx context.Context, req *http.Request) (
 	resolver.logger.DebugContext(
 		ctx,
 		"Found valid Cf-Connecting-Ip",
+		slog.String("ip", tempIP.String()),
+	)
+
+	return tempIP, nil
+}
+
+func (resolver *IPResolver) handleEOIP(ctx context.Context, req *http.Request) (net.IP, error) {
+	eoIPs := req.Header.Values(EOConnectingIP)
+	if len(eoIPs) != 1 {
+		return nil, ErrEOConnectingIPInvalid
+	}
+
+	resolver.logger.DebugContext(ctx, "Parsing EO-Connecting-IP", slog.Any("value", eoIPs))
+
+	tempIP := net.ParseIP(eoIPs[0])
+	if tempIP == nil {
+		return nil, fmt.Errorf("%w in EO-Connecting-IP: %s", ErrInvalidIPFormat, eoIPs[0])
+	}
+
+	resolver.logger.DebugContext(
+		ctx,
+		"Found valid EO-Connecting-IP",
 		slog.String("ip", tempIP.String()),
 	)
 

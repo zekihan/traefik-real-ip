@@ -160,6 +160,59 @@ func TestIPResolver_CloudflareHeaders(t *testing.T) {
 	}
 }
 
+func TestIPResolver_EdgeOneHeaders(t *testing.T) {
+	testCases := []*testCase{
+		{
+			desc:       "EO-Connecting-IP",
+			remote:     "198.51.100.10",
+			trustedIPs: []string{"198.51.100.0/24"},
+			reqHeaders: map[string]string{
+				traefikrealip.EOConnectingIP: "1.2.3.4",
+			},
+			expectedHeaders: map[string]string{
+				traefikrealip.XRealIP:       "1.2.3.4",
+				traefikrealip.XIsTrusted:    "yes",
+				traefikrealip.XForwardedFor: "1.2.3.4",
+			},
+			expectedStatus: http.StatusOK,
+		},
+		{
+			desc:   "Local EO-Connecting-IP",
+			remote: "10.0.0.1",
+			reqHeaders: map[string]string{
+				traefikrealip.EOConnectingIP: "1.2.3.4",
+			},
+			expectedHeaders: map[string]string{
+				traefikrealip.XRealIP:       "1.2.3.4",
+				traefikrealip.XIsTrusted:    "yes",
+				traefikrealip.XForwardedFor: "1.2.3.4",
+			},
+			expectedStatus: http.StatusOK,
+		},
+		{
+			desc:   "EO-Connecting-IP not trusted",
+			remote: "5.6.7.8",
+			reqHeaders: map[string]string{
+				traefikrealip.EOConnectingIP: "1.2.3.4",
+			},
+			expectedHeaders: map[string]string{
+				traefikrealip.XRealIP:       "5.6.7.8",
+				traefikrealip.XIsTrusted:    "no",
+				traefikrealip.XForwardedFor: "5.6.7.8",
+			},
+			expectedStatus: http.StatusOK,
+		},
+	}
+
+	for _, test := range testCases {
+		t.Run(test.desc, func(t *testing.T) {
+			recorder, req, handler := setupTest(t, test)
+			handler.ServeHTTP(recorder, req)
+			validateTestResult(t, test, recorder, req)
+		})
+	}
+}
+
 func TestIPResolver_StandardHeaders(t *testing.T) {
 	testCases := []*testCase{
 		{

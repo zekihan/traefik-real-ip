@@ -12,9 +12,10 @@ Traefik Real IP extracts and validates the actual client IP address from commonl
 
 ## Features
 
-- Extracts real IP from `Cf-Connecting-Ip`, `X-Real-IP`, and `X-Forwarded-For` headers
+- Extracts real IP from `Cf-Connecting-Ip`, `EO-Connecting-IP`, `X-Real-IP`, and `X-Forwarded-For` headers
 - Validates whether the source IP is trusted before accepting header values
 - Built-in support for Cloudflare IP ranges
+- Optional support for EdgeOne IP ranges
 - Supports local/private IP ranges
 - Custom trusted IP configuration
 - Configurable logging level
@@ -61,6 +62,7 @@ http:
         traefik-real-ip:
           thrustLocal: true
           thrustCloudFlare: true
+          thrustEdgeOne: false
           trustedIPs: 
             - "1.2.3.4/32"
             - "10.0.0.0/8"
@@ -73,6 +75,7 @@ http:
 |--------|------|---------|-------------|
 | `thrustLocal` | boolean | `true` | Trust local and private IP ranges |
 | `thrustCloudFlare` | boolean | `true` | Trust Cloudflare IP ranges |
+| `thrustEdgeOne` | boolean | `false` | Trust EdgeOne IP ranges |
 | `trustedIPs` | array of strings | `[]` | Additional IP ranges to trust in CIDR notation |
 | `logLevel` | string | `info` | Log level (debug, info, warn, error) |
 
@@ -80,10 +83,7 @@ http:
 
 1. The plugin extracts the source IP from the incoming request
 2. It checks if the source IP is in the trusted IPs list
-3. If trusted, it looks for real IP in headers:
-   - First checks `Cf-Connecting-Ip`
-   - Then checks `X-Real-IP`
-   - Finally checks `X-Forwarded-For`
+3. If trusted, it looks for real IP in headers in this order: `Cf-Connecting-Ip`, `EO-Connecting-IP`, `X-Real-IP`, then `X-Forwarded-For`.
 4. It updates the request headers with the discovered real IP
 5. Adds an `X-Is-Trusted: yes|no` header indicating if the source was trusted
 
