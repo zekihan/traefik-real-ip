@@ -141,6 +141,48 @@ test_cloudflare_header() {
     fi
 }
 
+test_edgeone_header() {
+    log_test "Testing EO-Connecting-IP header..."
+
+    response=$(curl -q -s "http://localhost:${TRAEFIK_PORT}" \
+        -H "Host: test.local" \
+        -H "EO-Connecting-IP: 203.0.113.30")
+
+    if [ "${VERBOSE:-0}" -eq 1 ]; then
+        log_info "Response:\n${response}"
+    fi
+
+    if echo "${response}" | grep -qi "X-Real-Ip: 203.0.113.30"; then
+        log_info "✓ EO-Connecting-IP header correctly mapped to X-Real-IP in response"
+        return 0
+    else
+        log_warn "⚠ EO-Connecting-IP header not correctly mapped in response (may be expected)"
+        return 1
+    fi
+}
+
+test_edgeone_priority() {
+    log_test "Ensuring EO-Connecting-IP takes priority over X-Real-IP and X-Forwarded-For"
+
+    response=$(curl -q -s "http://localhost:${TRAEFIK_PORT}" \
+        -H "Host: test.local" \
+        -H "X-Forwarded-For: 5.5.5.5" \
+        -H "X-Real-IP: 9.9.9.9" \
+        -H "EO-Connecting-IP: 45.45.45.45")
+
+    if [ "${VERBOSE:-0}" -eq 1 ]; then
+        log_info "Response:\n${response}"
+    fi
+
+    if echo "${response}" | grep -qi "X-Real-Ip: 45.45.45.45"; then
+        log_info "✓ EO-Connecting-IP header correctly prioritized over other headers"
+        return 0
+    else
+        log_warn "⚠ EO-Connecting-IP header not prioritized over other headers (may be expected)"
+        return 1
+    fi
+}
+
 # Test multiple headers
 test_multiple_headers() {
     log_test "Testing multiple proxy headers..."
@@ -149,6 +191,7 @@ test_multiple_headers() {
         -H "Host: test.local" \
         -H "X-Forwarded-For: 1.2.3.4, 5.6.7.8" \
         -H "X-Real-IP: 9.10.11.12" \
+        -H "EO-Connecting-IP: 17.18.19.20" \
         -H "Cf-Connecting-Ip: 13.14.15.16")
 
     if [ "${VERBOSE:-0}" -eq 1 ]; then
@@ -262,6 +305,8 @@ EOF
     test_x_forwarded_for || failed=$((failed + 1))
     test_x_real_ip || failed=$((failed + 1))
     test_cloudflare_header || failed=$((failed + 1))
+    test_edgeone_header || failed=$((failed + 1))
+    test_edgeone_priority || failed=$((failed + 1))
     test_multiple_headers || failed=$((failed + 1))
 
     # Summary
