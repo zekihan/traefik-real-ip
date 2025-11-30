@@ -102,7 +102,7 @@ func (resolver *IPResolver) getProviderIPsFromURL( //nolint:gocyclo // the funct
 		if attempt > 0 {
 			// Calculate delay with exponential backoff: 1s, 2s, 4s, 8s, 16s.
 
-			//nolint:gosec // acceptable in this contexts
+			//nolint:gosec // acceptable in this context.
 			delay := initialRetryDelay * time.Duration(1<<uint(attempt-1))
 			resolver.logger.InfoContext(
 				ctx,
