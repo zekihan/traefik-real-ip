@@ -163,7 +163,7 @@ func TestIPResolver_CloudflareHeaders(t *testing.T) {
 func TestIPResolver_EdgeOneHeaders(t *testing.T) {
 	testCases := []*testCase{
 		{
-			desc:       "EO-Connecting-IP",
+			desc:       "Eo-Connecting-Ip",
 			remote:     "198.51.100.10",
 			trustedIPs: []string{"198.51.100.0/24"},
 			reqHeaders: map[string]string{
@@ -177,7 +177,7 @@ func TestIPResolver_EdgeOneHeaders(t *testing.T) {
 			expectedStatus: http.StatusOK,
 		},
 		{
-			desc:   "Local EO-Connecting-IP",
+			desc:   "Local Eo-Connecting-Ip",
 			remote: "10.0.0.1",
 			reqHeaders: map[string]string{
 				traefikrealip.EoConnectingIP: "1.2.3.4",
@@ -190,7 +190,7 @@ func TestIPResolver_EdgeOneHeaders(t *testing.T) {
 			expectedStatus: http.StatusOK,
 		},
 		{
-			desc:   "EO-Connecting-IP not trusted",
+			desc:   "Eo-Connecting-Ip not trusted",
 			remote: "5.6.7.8",
 			reqHeaders: map[string]string{
 				traefikrealip.EoConnectingIP: "1.2.3.4",

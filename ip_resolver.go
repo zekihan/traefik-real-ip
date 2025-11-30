@@ -16,8 +16,8 @@ var (
 	ErrNoValidIPInXForwardedFor = errors.New("no valid IP found in X-Forwarded-For")
 	ErrInvalidIPFormat          = errors.New("invalid IP format")
 	ErrXRealIPInvalid           = errors.New("header X-Real-IP invalid")
-	ErrCfConnectingIPInvalid    = errors.New("header Cf-Connecting-Ip not found or invalid")
-	ErrEOConnectingIPInvalid    = errors.New("header EO-Connecting-IP not found or invalid")
+	ErrCfConnectingIpInvalid    = errors.New("header Cf-Connecting-Ip not found or invalid")
+	ErrEOConnectingIPInvalid    = errors.New("header Eo-Connecting-Ip not found or invalid")
 )
 
 func (resolver *IPResolver) getRealIP(
@@ -191,7 +191,7 @@ func (resolver *IPResolver) handleXRealIP(ctx context.Context, req *http.Request
 func (resolver *IPResolver) handleCFIP(ctx context.Context, req *http.Request) (net.IP, error) {
 	cfIPs := req.Header.Values(CfConnectingIP)
 	if len(cfIPs) != 1 {
-		return nil, ErrCfConnectingIPInvalid
+		return nil, ErrCfConnectingIpInvalid
 	}
 
 	resolver.logger.DebugContext(ctx, "Parsing Cf-Connecting-Ip", slog.Any("value", cfIPs))
@@ -216,16 +216,16 @@ func (resolver *IPResolver) handleEOIP(ctx context.Context, req *http.Request) (
 		return nil, ErrEOConnectingIPInvalid
 	}
 
-	resolver.logger.DebugContext(ctx, "Parsing EO-Connecting-IP", slog.Any("value", eoIPs))
+	resolver.logger.DebugContext(ctx, "Parsing Eo-Connecting-Ip", slog.Any("value", eoIPs))
 
 	tempIP := net.ParseIP(eoIPs[0])
 	if tempIP == nil {
-		return nil, fmt.Errorf("%w in EO-Connecting-IP: %s", ErrInvalidIPFormat, eoIPs[0])
+		return nil, fmt.Errorf("%w in Eo-Connecting-Ip: %s", ErrInvalidIPFormat, eoIPs[0])
 	}
 
 	resolver.logger.DebugContext(
 		ctx,
-		"Found valid EO-Connecting-IP",
+		"Found valid Eo-Connecting-Ip",
 		slog.String("ip", tempIP.String()),
 	)
 
