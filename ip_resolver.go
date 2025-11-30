@@ -31,7 +31,7 @@ func (resolver *IPResolver) getRealIP(
 			"Source IP is not trusted, skipping header checks",
 			slog.String("ip", srcIP.String()),
 			slog.String(CfConnectingIP, req.Header.Get(CfConnectingIP)),
-			slog.String(EOConnectingIP, req.Header.Get(EOConnectingIP)),
+			slog.String(EoConnectingIP, req.Header.Get(EoConnectingIP)),
 			slog.String(XRealIP, req.Header.Get(XRealIP)),
 			slog.String(XForwardedFor, req.Header.Get(XForwardedFor)),
 		)
@@ -56,11 +56,11 @@ func (resolver *IPResolver) getRealIP(
 		return cfIP, nil
 	}
 
-	eoConnectingIPHeader := req.Header.Values(EOConnectingIP)
+	eoConnectingIPHeader := req.Header.Values(EoConnectingIP)
 	resolver.logger.DebugContext(
 		ctx,
 		"Checking header",
-		slog.String("header", EOConnectingIP),
+		slog.String("header", EoConnectingIP),
 		slog.Bool("exists", len(eoConnectingIPHeader) > 0),
 	)
 
@@ -211,7 +211,7 @@ func (resolver *IPResolver) handleCFIP(ctx context.Context, req *http.Request) (
 }
 
 func (resolver *IPResolver) handleEOIP(ctx context.Context, req *http.Request) (net.IP, error) {
-	eoIPs := req.Header.Values(EOConnectingIP)
+	eoIPs := req.Header.Values(EoConnectingIP)
 	if len(eoIPs) != 1 {
 		return nil, ErrEOConnectingIPInvalid
 	}

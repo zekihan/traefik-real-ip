@@ -72,20 +72,20 @@ func TestIPResolver_getRealIP(t *testing.T) {
 		{
 			name:       "EO-Connecting-IP from trusted source",
 			srcIP:      "10.0.0.1",
-			headers:    map[string]string{EOConnectingIP: "198.51.100.10"},
+			headers:    map[string]string{EoConnectingIP: "198.51.100.10"},
 			expectedIP: "198.51.100.10",
 		},
 		{
 			name:         "EO-Connecting-IP from untrusted source",
 			srcIP:        "2.2.2.2",
-			headers:      map[string]string{EOConnectingIP: "198.51.100.10"},
+			headers:      map[string]string{EoConnectingIP: "198.51.100.10"},
 			trustedCIDRs: []string{"1.1.1.0/24"},
 			expectedIP:   "2.2.2.2",
 		},
 		{
 			name:          "Invalid EO-Connecting-IP",
 			srcIP:         "10.0.0.1",
-			headers:       map[string]string{EOConnectingIP: "invalid-ip"},
+			headers:       map[string]string{EoConnectingIP: "invalid-ip"},
 			expectedError: true,
 		},
 	}
@@ -372,7 +372,7 @@ func TestIPResolver_handleEOIP(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			req, _ := http.NewRequestWithContext(t.Context(), http.MethodGet, "/", http.NoBody)
-			req.Header.Set(EOConnectingIP, tt.headerValue)
+			req.Header.Set(EoConnectingIP, tt.headerValue)
 
 			result, err := resolver.handleEOIP(t.Context(), req)
 
@@ -399,8 +399,8 @@ func TestIPResolver_handleEOIP(t *testing.T) {
 	// Test multiple EO-Connecting-IP headers (should fail)
 	t.Run("Multiple EO-Connecting-IP headers", func(t *testing.T) {
 		req, _ := http.NewRequestWithContext(t.Context(), http.MethodGet, "/", http.NoBody)
-		req.Header.Add(EOConnectingIP, "198.51.100.10")
-		req.Header.Add(EOConnectingIP, "198.51.100.11")
+		req.Header.Add(EoConnectingIP, "198.51.100.10")
+		req.Header.Add(EoConnectingIP, "198.51.100.11")
 
 		_, err := resolver.handleEOIP(t.Context(), req)
 		if err == nil {

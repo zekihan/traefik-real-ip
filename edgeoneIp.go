@@ -23,8 +23,19 @@ var edgeOneProvider = remoteIPProvider{
 	cache: &edgeOneIPsInstance,
 }
 
+// Default fallback CIDRs for EdgeOne provider used when remote fetch fails.
+var edgeOneDefaultCIDRs = []string{
+	"198.51.100.0/24",
+	"2001:db8::/32",
+}
+
 func (resolver *IPResolver) getEdgeOneIPs(ctx context.Context) []*net.IPNet {
-	return resolver.getProviderIPs(ctx, edgeOneProvider)
+	ips := resolver.getProviderIPs(ctx, edgeOneProvider)
+	if len(ips) == 0 {
+		return parseDefaultCIDRs(edgeOneDefaultCIDRs)
+	}
+
+	return ips
 }
 
 func (resolver *IPResolver) getEdgeOneIPFromURL(

@@ -1,4 +1,4 @@
-//nolint:staticcheck // no reason
+//nolint:staticcheck,mnd // no reason
 package traefik_real_ip
 
 import (
@@ -39,7 +39,7 @@ func runRemoteProviderResponseTests(
 103.21.244.0/22
 103.22.200.0/22`,
 			statusCode:     http.StatusOK,
-			expectedIPsLen: 3,
+			expectedIPsLen: 3, //nolint:mnd
 			expectError:    false,
 		},
 		{
@@ -48,14 +48,14 @@ func runRemoteProviderResponseTests(
 2606:4700::/32
 2803:f800::/32`,
 			statusCode:     http.StatusOK,
-			expectedIPsLen: 3,
+			expectedIPsLen: 3, //nolint:mnd
 			expectError:    false,
 		},
 		{
 			name:           "empty response",
 			responseBody:   "",
 			statusCode:     http.StatusOK,
-			expectedIPsLen: 0,
+			expectedIPsLen: 0, //nolint:mnd
 			expectError:    false,
 		},
 		{
@@ -65,14 +65,14 @@ func runRemoteProviderResponseTests(
 103.21.244.0/22
 `,
 			statusCode:     http.StatusOK,
-			expectedIPsLen: 2,
+			expectedIPsLen: 2, //nolint:mnd
 			expectError:    false,
 		},
 		{
 			name:           "HTTP error response",
 			responseBody:   "Not Found",
 			statusCode:     http.StatusNotFound,
-			expectedIPsLen: 0,
+			expectedIPsLen: 0, //nolint:mnd
 			expectError:    true,
 		},
 		{
@@ -92,7 +92,8 @@ invalid-cidr
 				http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					w.WriteHeader(tc.statusCode)
 
-					if _, err := w.Write([]byte(tc.responseBody)); err != nil {
+					_, err := w.Write([]byte(tc.responseBody))
+					if err != nil {
 						t.Fatalf("Failed to write response: %v", err)
 					}
 				}),
@@ -150,7 +151,8 @@ func runCIDRParsingTests(
 			response.WriteString(cidr + "\n")
 		}
 
-		if _, err := w.Write([]byte(response.String())); err != nil {
+		_, err := w.Write([]byte(response.String()))
+		if err != nil {
 			t.Fatalf("Failed to write response: %v", err)
 		}
 	}))
@@ -200,14 +202,16 @@ func runHTTPErrorTests(
 				http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					w.WriteHeader(errCase.statusCode)
 
-					if _, err := w.Write([]byte("Error response")); err != nil {
+					_, err := w.Write([]byte("Error response"))
+					if err != nil {
 						t.Fatalf("Failed to write response: %v", err)
 					}
 				}),
 			)
 			defer server.Close()
 
-			if _, err := fetch(t.Context(), server.URL); err == nil {
+			_, err := fetch(t.Context(), server.URL)
+			if err == nil {
 				t.Errorf("Expected error for status code %d but got none", errCase.statusCode)
 			}
 		})

@@ -167,7 +167,7 @@ func TestIPResolver_EdgeOneHeaders(t *testing.T) {
 			remote:     "198.51.100.10",
 			trustedIPs: []string{"198.51.100.0/24"},
 			reqHeaders: map[string]string{
-				traefikrealip.EOConnectingIP: "1.2.3.4",
+				traefikrealip.EoConnectingIP: "1.2.3.4",
 			},
 			expectedHeaders: map[string]string{
 				traefikrealip.XRealIP:       "1.2.3.4",
@@ -180,7 +180,7 @@ func TestIPResolver_EdgeOneHeaders(t *testing.T) {
 			desc:   "Local EO-Connecting-IP",
 			remote: "10.0.0.1",
 			reqHeaders: map[string]string{
-				traefikrealip.EOConnectingIP: "1.2.3.4",
+				traefikrealip.EoConnectingIP: "1.2.3.4",
 			},
 			expectedHeaders: map[string]string{
 				traefikrealip.XRealIP:       "1.2.3.4",
@@ -193,7 +193,7 @@ func TestIPResolver_EdgeOneHeaders(t *testing.T) {
 			desc:   "EO-Connecting-IP not trusted",
 			remote: "5.6.7.8",
 			reqHeaders: map[string]string{
-				traefikrealip.EOConnectingIP: "1.2.3.4",
+				traefikrealip.EoConnectingIP: "1.2.3.4",
 			},
 			expectedHeaders: map[string]string{
 				traefikrealip.XRealIP:       "5.6.7.8",

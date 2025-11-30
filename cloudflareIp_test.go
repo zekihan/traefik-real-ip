@@ -42,28 +42,27 @@ func TestIPResolver_getCloudFlareIPs(t *testing.T) {
 	defer ipv6Server.Close()
 
 	originalProvider := cloudflareProvider
-	originalOnce := cloudFlareIPsOnce
 	originalInstance := cloudFlareIPsInstance
+	// Use a local once so we don't mutate the package-level sync.Once
+	var localOnce sync.Once
 
 	cloudFlareIPsInstance = nil
-	cloudFlareIPsOnce = sync.Once{}
 	cloudflareProvider = remoteIPProvider{
 		name:  originalProvider.name,
 		urls:  []string{ipv4Server.URL, ipv6Server.URL},
-		once:  &cloudFlareIPsOnce,
+		once:  &localOnce,
 		cache: &cloudFlareIPsInstance,
 	}
 
 	defer func() {
 		cloudflareProvider = originalProvider
-		cloudFlareIPsOnce = originalOnce
 		cloudFlareIPsInstance = originalInstance
 	}()
 
 	// This test would require modifying the actual URLs or dependency injection
-	// For now, we'll test the singleton behavior with a mock
+	// reset localOnce and cache for this subtest
+	localOnce = sync.Once{}
 	t.Run("singleton behavior", func(t *testing.T) {
-		cloudFlareIPsOnce = sync.Once{}
 		cloudFlareIPsInstance = nil
 
 		ips1 := resolver.getCloudFlareIPs(t.Context())

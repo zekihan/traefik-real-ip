@@ -23,7 +23,8 @@ func TestIPResolver_getEdgeOneIPs(t *testing.T) {
 	ipv4Server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 
-		if _, err := w.Write([]byte("198.51.100.0/24")); err != nil {
+		_, err := w.Write([]byte("198.51.100.0/24"))
+		if err != nil {
 			t.Fatalf("Failed to write response: %v", err)
 		}
 	}))
@@ -32,14 +33,14 @@ func TestIPResolver_getEdgeOneIPs(t *testing.T) {
 	ipv6Server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 
-		if _, err := w.Write([]byte("2001:db8::/32")); err != nil {
+		_, err := w.Write([]byte("2001:db8::/32"))
+		if err != nil {
 			t.Fatalf("Failed to write response: %v", err)
 		}
 	}))
 	defer ipv6Server.Close()
 
 	originalProvider := edgeOneProvider
-	originalOnce := edgeOneIPsOnce
 	originalInstance := edgeOneIPsInstance
 
 	edgeOneIPsInstance = nil
@@ -53,7 +54,6 @@ func TestIPResolver_getEdgeOneIPs(t *testing.T) {
 
 	defer func() {
 		edgeOneProvider = originalProvider
-		edgeOneIPsOnce = originalOnce
 		edgeOneIPsInstance = originalInstance
 	}()
 

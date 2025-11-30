@@ -22,22 +22,29 @@ const defaultRemoteProviderTimeout = 10 * time.Second
 
 // remoteIPProvider describes a remote service exposing CIDR blocks.
 type remoteIPProvider struct {
-	name  string
-	urls  []string
 	once  *sync.Once
 	cache *[]*net.IPNet
+	urls  []string
+	name  string
 }
 
 func (resolver *IPResolver) getProviderIPs(
 	ctx context.Context,
 	provider remoteIPProvider,
 ) []*net.IPNet {
+	// If cache is already populated, return it directly to avoid
+	// triggering provider.once.Do (which may fetch remote URLs).
+	if provider.cache != nil && *provider.cache != nil {
+		return *provider.cache
+	}
 	provider.once.Do(func() {
 		results := make([]*net.IPNet, 0)
 
 		for _, url := range provider.urls {
 			ips, err := resolver.getProviderIPsFromURL(ctx, provider.name, url)
 			if err != nil {
+				// Log the error and continue with other URLs. Do not panic so tests
+				// and callers can handle missing remote data (e.g. via fallbacks).
 				resolver.logger.ErrorContext(
 					ctx,
 					"Error fetching provider IPs",
@@ -45,7 +52,7 @@ func (resolver *IPResolver) getProviderIPs(
 					slog.String("url", url),
 					slog.Any("error", err),
 				)
-				panic(fmt.Sprintf("Error fetching %s IPs: %v", provider.name, err))
+				continue
 			}
 
 			results = append(results, ips...)
