@@ -18,7 +18,11 @@ var (
 	ErrRemoteIPProviderHTTPStatus = errors.New("failed to fetch remote IP provider ranges")
 )
 
-const defaultRemoteProviderTimeout = 10 * time.Second
+const (
+	defaultRemoteProviderTimeout = 10 * time.Second
+	maxRetries                   = 5
+	initialRetryDelay            = 1 * time.Second
+)
 
 // remoteIPProvider describes a remote service exposing CIDR blocks.
 type remoteIPProvider struct {
@@ -86,31 +90,96 @@ func (resolver *IPResolver) getProviderIPsFromURL(
 		return ips, fmt.Errorf("error creating HTTP request: %w", err)
 	}
 
-	response, err := client.Do(req)
-	if err != nil {
+	var response *http.Response
+	var lastErr error
+
+	// Retry logic with exponential backoff
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		if attempt > 0 {
+			// Calculate delay with exponential backoff: 1s, 2s, 4s, 8s, 16s
+			delay := initialRetryDelay * time.Duration(1<<uint(attempt-1))
+			resolver.logger.InfoContext(
+				ctx,
+				"Retrying request",
+				slog.String("provider", providerName),
+				slog.String("url", url),
+				slog.Int("attempt", attempt),
+				slog.Duration("delay", delay),
+			)
+
+			select {
+			case <-time.After(delay):
+			case <-ctx.Done():
+				return ips, fmt.Errorf("context cancelled during retry: %w", ctx.Err())
+			}
+		}
+
+		response, err = client.Do(req)
+		if err != nil {
+			lastErr = err
+			resolver.logger.WarnContext(
+				ctx,
+				"Request failed, will retry",
+				slog.String("provider", providerName),
+				slog.String("url", url),
+				slog.Int("attempt", attempt+1),
+				slog.Int("max_retries", maxRetries+1),
+				slog.Any("error", err),
+			)
+			continue
+		}
+
+		// Check status code
+		if response.StatusCode != http.StatusOK {
+			lastErr = fmt.Errorf("%w: %s", ErrRemoteIPProviderHTTPStatus, response.Status)
+			_ = response.Body.Close()
+
+			// Don't retry on client errors (4xx) - these won't be fixed by retrying
+			if response.StatusCode >= 400 && response.StatusCode < 500 {
+				resolver.logger.ErrorContext(
+					ctx,
+					"Client error, will not retry",
+					slog.String("provider", providerName),
+					slog.String("url", url),
+					slog.Int("status_code", response.StatusCode),
+				)
+				return ips, lastErr
+			}
+
+			resolver.logger.WarnContext(
+				ctx,
+				"Request returned non-OK status, will retry",
+				slog.String("provider", providerName),
+				slog.String("url", url),
+				slog.Int("status_code", response.StatusCode),
+				slog.Int("attempt", attempt+1),
+				slog.Int("max_retries", maxRetries+1),
+			)
+			continue
+		}
+
+		// Success - break out of retry loop
+		break
+	}
+
+	// If we exhausted all retries
+	if response == nil || response.StatusCode != http.StatusOK {
 		resolver.logger.ErrorContext(
 			ctx,
-			"Error fetching provider IPs",
+			"Failed to fetch provider IPs after retries",
 			slog.String("provider", providerName),
 			slog.String("url", url),
-			slog.Any("error", err),
+			slog.Int("max_retries", maxRetries+1),
+			slog.Any("error", lastErr),
 		)
 
-		return ips, fmt.Errorf("error fetching %s IPs: %w", providerName, err)
+		if lastErr != nil {
+			return ips, fmt.Errorf("error fetching %s IPs after %d retries: %w", providerName, maxRetries+1, lastErr)
+		}
+		return ips, fmt.Errorf("error fetching %s IPs: unknown error after retries", providerName)
 	}
-	defer response.Body.Close()
 
-	if response.StatusCode != http.StatusOK {
-		resolver.logger.ErrorContext(
-			ctx,
-			"Failed to fetch provider IPs",
-			slog.String("provider", providerName),
-			slog.String("url", url),
-			slog.Int("status_code", response.StatusCode),
-		)
-
-		return nil, fmt.Errorf("%w: %s", ErrRemoteIPProviderHTTPStatus, response.Status)
-	}
+	defer func() { _ = response.Body.Close() }()
 
 	bytes, err := io.ReadAll(response.Body)
 	if err != nil {
