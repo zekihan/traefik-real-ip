@@ -42,7 +42,7 @@ func TestIPResolver_getEdgeOneIPs(t *testing.T) {
 
 	// Use local once and cache variables to avoid package-level state issues.
 	var localOnce sync.Once
-	var localCache []string
+	var localCache []*net.IPNet
 
 	originalProvider := edgeOneProvider
 	edgeOneProvider = remoteIPProvider{
