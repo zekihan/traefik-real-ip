@@ -77,8 +77,7 @@ func New(
 	if config.ThrustCloudFlare {
 		cloudFlareIPs := ipResolver.getCloudFlareIPs(ctx)
 		if len(cloudFlareIPs) == 0 {
-			// Fallback to embedded defaults.
-			cloudFlareIPs = parseDefaultCIDRs(cloudFlareDefaultCIDRs)
+			return nil, ErrGettingCloudflareIPs
 		}
 
 		trustedIPNets = append(trustedIPNets, cloudFlareIPs...)
@@ -87,8 +86,7 @@ func New(
 	if config.ThrustEdgeOne {
 		edgeOneIPs := ipResolver.getEdgeOneIPs(ctx)
 		if len(edgeOneIPs) == 0 {
-			// Fallback to embedded defaults if defined.
-			edgeOneIPs = parseDefaultCIDRs(edgeOneDefaultCIDRs)
+			return nil, ErrGettingEdgeOneIPs
 		}
 
 		trustedIPNets = append(trustedIPNets, edgeOneIPs...)
