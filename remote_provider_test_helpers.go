@@ -39,7 +39,7 @@ func runRemoteProviderResponseTests(
 103.21.244.0/22
 103.22.200.0/22`,
 			statusCode:     http.StatusOK,
-			expectedIPsLen: 3, //nolint:mnd
+			expectedIPsLen: 3,
 			expectError:    false,
 		},
 		{
@@ -48,14 +48,14 @@ func runRemoteProviderResponseTests(
 2606:4700::/32
 2803:f800::/32`,
 			statusCode:     http.StatusOK,
-			expectedIPsLen: 3, //nolint:mnd
+			expectedIPsLen: 3,
 			expectError:    false,
 		},
 		{
 			name:           "empty response",
 			responseBody:   "",
 			statusCode:     http.StatusOK,
-			expectedIPsLen: 0, //nolint:mnd
+			expectedIPsLen: 0,
 			expectError:    false,
 		},
 		{
@@ -65,14 +65,14 @@ func runRemoteProviderResponseTests(
 103.21.244.0/22
 `,
 			statusCode:     http.StatusOK,
-			expectedIPsLen: 2, //nolint:mnd
+			expectedIPsLen: 2,
 			expectError:    false,
 		},
 		{
 			name:           "HTTP error response",
 			responseBody:   "Not Found",
 			statusCode:     http.StatusNotFound,
-			expectedIPsLen: 0, //nolint:mnd
+			expectedIPsLen: 0,
 			expectError:    true,
 		},
 		{

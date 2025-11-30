@@ -40,13 +40,14 @@ func parseDefaultCIDRs(defaults []string) []*net.IPNet {
 			res = append(res, ipnet)
 		}
 	}
+
 	return res
 }
 
 func (resolver *IPResolver) getCloudFlareIPs(ctx context.Context) []*net.IPNet {
 	ips := resolver.getProviderIPs(ctx, cloudflareProvider)
 	if len(ips) == 0 {
-		// fallback to embedded defaults
+		// Fallback to embedded defaults.
 		return parseDefaultCIDRs(cloudFlareDefaultCIDRs)
 	}
 

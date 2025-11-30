@@ -62,6 +62,7 @@ func TestIPResolver_getCloudFlareIPs(t *testing.T) {
 	// This test would require modifying the actual URLs or dependency injection
 	// reset localOnce and cache for this subtest
 	localOnce = sync.Once{}
+
 	t.Run("singleton behavior", func(t *testing.T) {
 		cloudFlareIPsInstance = nil
 

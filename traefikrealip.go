@@ -77,7 +77,7 @@ func New(
 	if config.ThrustCloudFlare {
 		cloudFlareIPs := ipResolver.getCloudFlareIPs(ctx)
 		if len(cloudFlareIPs) == 0 {
-			// fallback to embedded defaults
+			// Fallback to embedded defaults.
 			cloudFlareIPs = parseDefaultCIDRs(cloudFlareDefaultCIDRs)
 		}
 
@@ -87,7 +87,7 @@ func New(
 	if config.ThrustEdgeOne {
 		edgeOneIPs := ipResolver.getEdgeOneIPs(ctx)
 		if len(edgeOneIPs) == 0 {
-			// fallback to embedded defaults if defined
+			// Fallback to embedded defaults if defined.
 			edgeOneIPs = parseDefaultCIDRs(edgeOneDefaultCIDRs)
 		}
 
@@ -114,7 +114,7 @@ func New(
 		logLevel.Set(slog.LevelInfo)
 	case "warn":
 		logLevel.Set(slog.LevelWarn)
-	case "error": // nolint:goconst
+	case "error":
 		logLevel.Set(slog.LevelError)
 	case "":
 		logLevel.Set(slog.LevelInfo)
