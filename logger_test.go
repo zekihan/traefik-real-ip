@@ -9,9 +9,7 @@ import (
 )
 
 func TestNewPluginLogger(t *testing.T) {
-	level := &slog.LevelVar{}
-
-	logger := NewPluginLogger("test-plugin", level)
+	logger := NewPluginLogger(t.Context(), "test-plugin", LogLevelDebug)
 	if logger == nil {
 		t.Fatal("Expected non-nil PluginLogger")
 	}

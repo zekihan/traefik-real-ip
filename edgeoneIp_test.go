@@ -1,7 +1,6 @@
 package traefik_real_ip
 
 import (
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -14,9 +13,7 @@ func TestIPResolver_getEdgeOneIPFromURL(t *testing.T) {
 }
 
 func TestIPResolver_getEdgeOneIPs(t *testing.T) {
-	level := &slog.LevelVar{}
-	level.Set(slog.LevelDebug)
-	logger := NewPluginLogger("test", level)
+	logger := NewPluginLogger(t.Context(), "test", LogLevelDebug)
 	resolver := &IPResolver{logger: logger}
 
 	ipv4Server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

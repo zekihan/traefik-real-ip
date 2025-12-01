@@ -2,7 +2,6 @@ package traefik_real_ip
 
 import (
 	"context"
-	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -13,10 +12,7 @@ import (
 func newTestResolver(t *testing.T) *IPResolver {
 	t.Helper()
 
-	level := &slog.LevelVar{}
-	level.Set(slog.LevelDebug)
-
-	return &IPResolver{logger: NewPluginLogger("test", level)}
+	return &IPResolver{logger: NewPluginLogger(t.Context(), "test", LogLevelDebug)}
 }
 
 func runRemoteProviderResponseTests(

@@ -7,6 +7,7 @@ import (
 	"os"
 	"runtime"
 	"runtime/debug"
+	"strings"
 )
 
 func init() {
@@ -23,7 +24,29 @@ type PluginLogger struct {
 	pluginName string
 }
 
-func NewPluginLogger(pluginName string, logLevel *slog.LevelVar) *PluginLogger {
+func NewPluginLogger(ctx context.Context, pluginName, logLevelStr string) *PluginLogger {
+	logLevel := &slog.LevelVar{}
+
+	switch strings.ToLower(logLevelStr) {
+	case LogLevelDebug:
+		logLevel.Set(slog.LevelDebug)
+	case LogLevelInfo:
+		logLevel.Set(slog.LevelInfo)
+	case LogLevelWarn:
+		logLevel.Set(slog.LevelWarn)
+	case LogLevelError:
+		logLevel.Set(slog.LevelError)
+	case "":
+		logLevel.Set(slog.LevelInfo)
+	default:
+		slog.WarnContext(
+			ctx,
+			"Invalid log level, using info",
+			slog.String("level", logLevelStr),
+		)
+		logLevel.Set(slog.LevelInfo)
+	}
+
 	opts := &slog.HandlerOptions{
 		AddSource:   false,
 		Level:       logLevel,

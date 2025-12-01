@@ -1,17 +1,14 @@
 package traefik_real_ip
 
 import (
-	"log/slog"
 	"net"
 	"net/http"
 	"testing"
 )
 
 func TestIPResolver_getRealIP(t *testing.T) {
-	level := &slog.LevelVar{}
-	level.Set(slog.LevelDebug)
 	ipResolver := &IPResolver{
-		logger: NewPluginLogger("test", level),
+		logger: NewPluginLogger(t.Context(), "test", LogLevelDebug),
 	}
 
 	trustedIPNets := make([]*net.IPNet, 0)
@@ -92,7 +89,7 @@ func TestIPResolver_getRealIP(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			resolver := &IPResolver{
-				logger:        NewPluginLogger("test", level),
+				logger:        NewPluginLogger(t.Context(), "test", LogLevelDebug),
 				trustedIPNets: trustedIPNets,
 			}
 
@@ -126,10 +123,8 @@ func TestIPResolver_getRealIP(t *testing.T) {
 }
 
 func TestIPResolver_handleXForwardedFor(t *testing.T) {
-	level := &slog.LevelVar{}
-	level.Set(slog.LevelDebug)
 	resolver := &IPResolver{
-		logger: NewPluginLogger("test", level),
+		logger: NewPluginLogger(t.Context(), "test", LogLevelDebug),
 	}
 
 	tests := []struct {
@@ -199,10 +194,8 @@ func TestIPResolver_handleXForwardedFor(t *testing.T) {
 }
 
 func TestIPResolver_handleXRealIP(t *testing.T) {
-	level := &slog.LevelVar{}
-	level.Set(slog.LevelDebug)
 	resolver := &IPResolver{
-		logger: NewPluginLogger("test", level),
+		logger: NewPluginLogger(t.Context(), "test", LogLevelDebug),
 	}
 
 	tests := []struct {
@@ -269,10 +262,8 @@ func TestIPResolver_handleXRealIP(t *testing.T) {
 }
 
 func TestIPResolver_handleCFIP(t *testing.T) {
-	level := &slog.LevelVar{}
-	level.Set(slog.LevelDebug)
 	resolver := &IPResolver{
-		logger: NewPluginLogger("test", level),
+		logger: NewPluginLogger(t.Context(), "test", LogLevelDebug),
 	}
 
 	tests := []struct {
@@ -339,10 +330,8 @@ func TestIPResolver_handleCFIP(t *testing.T) {
 }
 
 func TestIPResolver_handleEOIP(t *testing.T) {
-	level := &slog.LevelVar{}
-	level.Set(slog.LevelDebug)
 	resolver := &IPResolver{
-		logger: NewPluginLogger("test", level),
+		logger: NewPluginLogger(t.Context(), "test", LogLevelDebug),
 	}
 
 	tests := []struct {
@@ -409,10 +398,8 @@ func TestIPResolver_handleEOIP(t *testing.T) {
 }
 
 func TestIPResolver_getSrcIP(t *testing.T) {
-	level := &slog.LevelVar{}
-	level.Set(slog.LevelDebug)
 	resolver := &IPResolver{
-		logger: NewPluginLogger("test", level),
+		logger: NewPluginLogger(t.Context(), "test", LogLevelDebug),
 	}
 
 	tests := []struct {

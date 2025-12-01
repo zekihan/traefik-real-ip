@@ -1,7 +1,6 @@
 package traefik_real_ip
 
 import (
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -14,9 +13,7 @@ func TestIPResolver_getCloudFlareIPFromURL(t *testing.T) {
 }
 
 func TestIPResolver_getCloudFlareIPs(t *testing.T) {
-	level := &slog.LevelVar{}
-	level.Set(slog.LevelDebug)
-	logger := NewPluginLogger("test", level)
+	logger := NewPluginLogger(t.Context(), "test", LogLevelDebug)
 	resolver := &IPResolver{logger: logger}
 
 	// Create mock servers for IPv4 and IPv6

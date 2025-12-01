@@ -20,13 +20,6 @@ var (
 	ErrPanic                 = errors.New("panic")
 )
 
-const (
-	LogLevelDebug = "debug"
-	LogLevelInfo  = "info"
-	LogLevelWarn  = "warn"
-	LogLevelError = "error"
-)
-
 // Config the plugin configuration.
 type Config struct {
 	LogLevel         string   `json:"logLevel,omitempty"`
@@ -69,29 +62,7 @@ func New(
 		name: name,
 	}
 
-	logLevel := &slog.LevelVar{}
-
-	switch strings.ToLower(config.LogLevel) {
-	case LogLevelDebug:
-		logLevel.Set(slog.LevelDebug)
-	case LogLevelInfo:
-		logLevel.Set(slog.LevelInfo)
-	case LogLevelWarn:
-		logLevel.Set(slog.LevelWarn)
-	case LogLevelError:
-		logLevel.Set(slog.LevelError)
-	case "":
-		logLevel.Set(slog.LevelInfo)
-	default:
-		slog.WarnContext(
-			ctx,
-			"Invalid log level, using info",
-			slog.String("level", config.LogLevel),
-		)
-		logLevel.Set(slog.LevelInfo)
-	}
-
-	pluginLogger := NewPluginLogger(name, logLevel)
+	pluginLogger := NewPluginLogger(ctx, name, config.LogLevel)
 	ipResolver.logger = pluginLogger
 
 	trustedIPNets := make([]*net.IPNet, 0)

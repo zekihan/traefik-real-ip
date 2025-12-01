@@ -1,15 +1,12 @@
 package traefik_real_ip
 
 import (
-	"log/slog"
 	"net"
 	"testing"
 )
 
 func TestIPResolver_isTrustedIP(t *testing.T) {
-	level := &slog.LevelVar{}
-	level.Set(slog.LevelDebug)
-	logger := NewPluginLogger("test", level)
+	logger := NewPluginLogger(t.Context(), "test", LogLevelDebug)
 
 	_, trustedNet1, _ := net.ParseCIDR("192.168.1.0/24")
 	_, trustedNet2, _ := net.ParseCIDR("10.0.0.0/8")
@@ -148,9 +145,7 @@ func TestIPResolver_isPrivateIP(t *testing.T) {
 }
 
 func TestIPResolver_isTrustedIP_EmptyTrustedNets(t *testing.T) {
-	level := &slog.LevelVar{}
-	level.Set(slog.LevelDebug)
-	logger := NewPluginLogger("test", level)
+	logger := NewPluginLogger(t.Context(), "test", LogLevelDebug)
 	resolver := &IPResolver{
 		trustedIPNets: []*net.IPNet{},
 		logger:        logger,

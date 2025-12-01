@@ -8,6 +8,13 @@ const (
 	XIsTrusted     = "X-Is-Trusted"
 )
 
+const (
+	LogLevelDebug = "debug"
+	LogLevelInfo  = "info"
+	LogLevelWarn  = "warn"
+	LogLevelError = "error"
+)
+
 type ContextKey string
 
 const RetryCountKey ContextKey = "retryCount"

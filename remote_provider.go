@@ -13,9 +13,7 @@ import (
 	"time"
 )
 
-var (
-	ErrRemoteIPProviderHTTPStatus = errors.New("failed to fetch remote IP provider ranges")
-)
+var ErrRemoteIPProviderHTTPStatus = errors.New("failed to fetch remote IP provider ranges")
 
 const (
 	defaultRemoteProviderTimeout = 10 * time.Second
