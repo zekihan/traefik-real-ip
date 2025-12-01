@@ -69,6 +69,25 @@ func TestIPResolver_getRealIP(t *testing.T) {
 			trustedCIDRs:  []string{"1.1.1.0/24"},
 			expectedError: true,
 		},
+		{
+			name:       "Eo-Connecting-Ip from trusted source",
+			srcIP:      "10.0.0.1",
+			headers:    map[string]string{EoConnectingIP: "198.51.100.10"},
+			expectedIP: "198.51.100.10",
+		},
+		{
+			name:         "Eo-Connecting-Ip from untrusted source",
+			srcIP:        "2.2.2.2",
+			headers:      map[string]string{EoConnectingIP: "198.51.100.10"},
+			trustedCIDRs: []string{"1.1.1.0/24"},
+			expectedIP:   "2.2.2.2",
+		},
+		{
+			name:          "Invalid Eo-Connecting-Ip",
+			srcIP:         "10.0.0.1",
+			headers:       map[string]string{EoConnectingIP: "invalid-ip"},
+			expectedError: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -316,6 +335,76 @@ func TestIPResolver_handleCFIP(t *testing.T) {
 		_, err := resolver.handleCFIP(t.Context(), req)
 		if err == nil {
 			t.Errorf("Expected error for multiple Cf-Connecting-Ip headers")
+		}
+	})
+}
+
+func TestIPResolver_handleEOIP(t *testing.T) {
+	level := &slog.LevelVar{}
+	level.Set(slog.LevelDebug)
+	resolver := &IPResolver{
+		logger: NewPluginLogger("test", level),
+	}
+
+	tests := []struct {
+		name          string
+		headerValue   string
+		expectedIP    string
+		expectedError bool
+	}{
+		{
+			name:        "Valid IP",
+			headerValue: "198.51.100.10",
+			expectedIP:  "198.51.100.10",
+		},
+		{
+			name:          "Invalid IP format",
+			headerValue:   "invalid-ip",
+			expectedError: true,
+		},
+		{
+			name:        "IPv6 address",
+			headerValue: "2001:db8::2",
+			expectedIP:  "2001:db8::2",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req, _ := http.NewRequestWithContext(t.Context(), http.MethodGet, "/", http.NoBody)
+			req.Header.Set(EoConnectingIP, tt.headerValue)
+
+			result, err := resolver.handleEOIP(t.Context(), req)
+
+			if tt.expectedError {
+				if err == nil {
+					t.Errorf("Expected error but got none")
+				}
+
+				return
+			}
+
+			if err != nil {
+				t.Errorf("Unexpected error: %v", err)
+
+				return
+			}
+
+			if result.String() != tt.expectedIP {
+				t.Errorf("Expected IP %s, got %s", tt.expectedIP, result.String())
+			}
+		})
+	}
+
+	// Test multiple Eo-Connecting-Ip headers (should fail)
+	t.Run("Multiple Eo-Connecting-Ip headers", func(t *testing.T) {
+		req, _ := http.NewRequestWithContext(t.Context(), http.MethodGet, "/", http.NoBody)
+		req.Header.Add(EoConnectingIP, "198.51.100.10")
+		req.Header.Add(EoConnectingIP, "198.51.100.11")
+
+		_, err := resolver.handleEOIP(t.Context(), req)
+		if err == nil {
+			t.Errorf("Expected error for multiple Eo-Connecting-Ip headers")
 		}
 	})
 }

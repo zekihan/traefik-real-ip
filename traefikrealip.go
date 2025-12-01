@@ -16,8 +16,16 @@ import (
 var (
 	ErrGettingLocalIPs       = errors.New("error getting local IPs")
 	ErrGettingCloudflareIPs  = errors.New("error getting Cloudflare IPs")
+	ErrGettingEdgeOneIPs     = errors.New("error getting EdgeOne IPs")
 	ErrInvalidTrustedIPRange = errors.New("invalid trusted IP range")
 	ErrPanic                 = errors.New("panic")
+)
+
+const (
+	LogLevelDebug = "debug"
+	LogLevelInfo  = "info"
+	LogLevelWarn  = "warn"
+	LogLevelError = "error"
 )
 
 // Config the plugin configuration.
@@ -26,6 +34,7 @@ type Config struct {
 	TrustedIPs       []string `json:"trustedIPs,omitempty"`
 	ThrustLocal      bool     `json:"thrustLocal,omitempty"`
 	ThrustCloudFlare bool     `json:"thrustCloudFlare,omitempty"`
+	ThrustEdgeOne    bool     `json:"thrustEdgeOne,omitempty"`
 }
 
 // CreateConfig creates the default plugin configuration.
@@ -33,6 +42,7 @@ func CreateConfig() *Config {
 	return &Config{
 		ThrustLocal:      true,
 		ThrustCloudFlare: true,
+		ThrustEdgeOne:    false,
 		TrustedIPs:       make([]string, 0),
 		LogLevel:         "info",
 	}
@@ -80,6 +90,15 @@ func New(
 		trustedIPNets = append(trustedIPNets, cloudFlareIPs...)
 	}
 
+	if config.ThrustEdgeOne {
+		edgeOneIPs := ipResolver.getEdgeOneIPs(ctx)
+		if len(edgeOneIPs) == 0 {
+			return nil, ErrGettingEdgeOneIPs
+		}
+
+		trustedIPNets = append(trustedIPNets, edgeOneIPs...)
+	}
+
 	for _, ipRange := range config.TrustedIPs {
 		_, ipNet, err := net.ParseCIDR(ipRange)
 		if err != nil {
@@ -94,13 +113,13 @@ func New(
 	logLevel := &slog.LevelVar{}
 
 	switch strings.ToLower(config.LogLevel) {
-	case "debug":
+	case LogLevelDebug:
 		logLevel.Set(slog.LevelDebug)
-	case "info":
+	case LogLevelInfo:
 		logLevel.Set(slog.LevelInfo)
-	case "warn":
+	case LogLevelWarn:
 		logLevel.Set(slog.LevelWarn)
-	case "error":
+	case LogLevelError:
 		logLevel.Set(slog.LevelError)
 	case "":
 		logLevel.Set(slog.LevelInfo)

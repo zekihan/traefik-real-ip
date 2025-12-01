@@ -160,6 +160,59 @@ func TestIPResolver_CloudflareHeaders(t *testing.T) {
 	}
 }
 
+func TestIPResolver_EdgeOneHeaders(t *testing.T) {
+	testCases := []*testCase{
+		{
+			desc:       "Eo-Connecting-Ip",
+			remote:     "198.51.100.10",
+			trustedIPs: []string{"198.51.100.0/24"},
+			reqHeaders: map[string]string{
+				traefikrealip.EoConnectingIP: "1.2.3.4",
+			},
+			expectedHeaders: map[string]string{
+				traefikrealip.XRealIP:       "1.2.3.4",
+				traefikrealip.XIsTrusted:    "yes",
+				traefikrealip.XForwardedFor: "1.2.3.4",
+			},
+			expectedStatus: http.StatusOK,
+		},
+		{
+			desc:   "Local Eo-Connecting-Ip",
+			remote: "10.0.0.1",
+			reqHeaders: map[string]string{
+				traefikrealip.EoConnectingIP: "1.2.3.4",
+			},
+			expectedHeaders: map[string]string{
+				traefikrealip.XRealIP:       "1.2.3.4",
+				traefikrealip.XIsTrusted:    "yes",
+				traefikrealip.XForwardedFor: "1.2.3.4",
+			},
+			expectedStatus: http.StatusOK,
+		},
+		{
+			desc:   "Eo-Connecting-Ip not trusted",
+			remote: "5.6.7.8",
+			reqHeaders: map[string]string{
+				traefikrealip.EoConnectingIP: "1.2.3.4",
+			},
+			expectedHeaders: map[string]string{
+				traefikrealip.XRealIP:       "5.6.7.8",
+				traefikrealip.XIsTrusted:    "no",
+				traefikrealip.XForwardedFor: "5.6.7.8",
+			},
+			expectedStatus: http.StatusOK,
+		},
+	}
+
+	for _, test := range testCases {
+		t.Run(test.desc, func(t *testing.T) {
+			recorder, req, handler := setupTest(t, test)
+			handler.ServeHTTP(recorder, req)
+			validateTestResult(t, test, recorder, req)
+		})
+	}
+}
+
 func TestIPResolver_StandardHeaders(t *testing.T) {
 	testCases := []*testCase{
 		{
@@ -292,6 +345,64 @@ func TestIPResolver_MultipleHeaders(t *testing.T) {
 				traefikrealip.XRealIP:       "5.6.7.8",
 				traefikrealip.XIsTrusted:    "no",
 				traefikrealip.XForwardedFor: "5.6.7.8",
+			},
+			expectedStatus: http.StatusOK,
+		},
+		{
+			desc:   "Cf-Connecting-Ip takes precedence over Eo-Connecting-Ip",
+			remote: "10.0.0.1",
+			reqHeaders: map[string]string{
+				traefikrealip.CfConnectingIP: "1.2.3.4",
+				traefikrealip.EoConnectingIP: "5.6.7.8",
+			},
+			expectedHeaders: map[string]string{
+				traefikrealip.XRealIP:       "1.2.3.4",
+				traefikrealip.XIsTrusted:    "yes",
+				traefikrealip.XForwardedFor: "1.2.3.4",
+			},
+			expectedStatus: http.StatusOK,
+		},
+		{
+			desc:   "Eo-Connecting-Ip takes precedence over X-Real-IP",
+			remote: "10.0.0.1",
+			reqHeaders: map[string]string{
+				traefikrealip.EoConnectingIP: "1.2.3.4",
+				traefikrealip.XRealIP:        "5.6.7.8",
+			},
+			expectedHeaders: map[string]string{
+				traefikrealip.XRealIP:       "1.2.3.4",
+				traefikrealip.XIsTrusted:    "yes",
+				traefikrealip.XForwardedFor: "1.2.3.4",
+			},
+			expectedStatus: http.StatusOK,
+		},
+		{
+			desc:   "X-Real-IP takes precedence over X-Forwarded-For",
+			remote: "10.0.0.1",
+			reqHeaders: map[string]string{
+				traefikrealip.XRealIP:       "1.2.3.4",
+				traefikrealip.XForwardedFor: "5.6.7.8",
+			},
+			expectedHeaders: map[string]string{
+				traefikrealip.XRealIP:       "1.2.3.4",
+				traefikrealip.XIsTrusted:    "yes",
+				traefikrealip.XForwardedFor: "1.2.3.4, 5.6.7.8",
+			},
+			expectedStatus: http.StatusOK,
+		},
+		{
+			desc:   "All four headers present - Cf-Connecting-Ip wins",
+			remote: "10.0.0.1",
+			reqHeaders: map[string]string{
+				traefikrealip.CfConnectingIP: "1.2.3.4",
+				traefikrealip.EoConnectingIP: "2.3.4.5",
+				traefikrealip.XRealIP:        "3.4.5.6",
+				traefikrealip.XForwardedFor:  "4.5.6.7",
+			},
+			expectedHeaders: map[string]string{
+				traefikrealip.XRealIP:       "1.2.3.4",
+				traefikrealip.XIsTrusted:    "yes",
+				traefikrealip.XForwardedFor: "1.2.3.4, 4.5.6.7",
 			},
 			expectedStatus: http.StatusOK,
 		},

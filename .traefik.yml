@@ -7,6 +7,7 @@ summary: Extracts the real client IP address from various HTTP headers.
 testData:
   thrustLocal: true
   thrustCloudFlare: true
+  thrustEdgeOne: true
   trustedIPs:
     - "127.0.0.1/32"
   logLevel: info
