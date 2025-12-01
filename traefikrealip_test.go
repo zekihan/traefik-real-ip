@@ -348,6 +348,64 @@ func TestIPResolver_MultipleHeaders(t *testing.T) {
 			},
 			expectedStatus: http.StatusOK,
 		},
+		{
+			desc:   "Cf-Connecting-Ip takes precedence over Eo-Connecting-Ip",
+			remote: "10.0.0.1",
+			reqHeaders: map[string]string{
+				traefikrealip.CfConnectingIP: "1.2.3.4",
+				traefikrealip.EoConnectingIP: "5.6.7.8",
+			},
+			expectedHeaders: map[string]string{
+				traefikrealip.XRealIP:       "1.2.3.4",
+				traefikrealip.XIsTrusted:    "yes",
+				traefikrealip.XForwardedFor: "1.2.3.4",
+			},
+			expectedStatus: http.StatusOK,
+		},
+		{
+			desc:   "Eo-Connecting-Ip takes precedence over X-Real-IP",
+			remote: "10.0.0.1",
+			reqHeaders: map[string]string{
+				traefikrealip.EoConnectingIP: "1.2.3.4",
+				traefikrealip.XRealIP:        "5.6.7.8",
+			},
+			expectedHeaders: map[string]string{
+				traefikrealip.XRealIP:       "1.2.3.4",
+				traefikrealip.XIsTrusted:    "yes",
+				traefikrealip.XForwardedFor: "1.2.3.4",
+			},
+			expectedStatus: http.StatusOK,
+		},
+		{
+			desc:   "X-Real-IP takes precedence over X-Forwarded-For",
+			remote: "10.0.0.1",
+			reqHeaders: map[string]string{
+				traefikrealip.XRealIP:       "1.2.3.4",
+				traefikrealip.XForwardedFor: "5.6.7.8",
+			},
+			expectedHeaders: map[string]string{
+				traefikrealip.XRealIP:       "1.2.3.4",
+				traefikrealip.XIsTrusted:    "yes",
+				traefikrealip.XForwardedFor: "1.2.3.4, 5.6.7.8",
+			},
+			expectedStatus: http.StatusOK,
+		},
+		{
+			desc:   "All four headers present - Cf-Connecting-Ip wins",
+			remote: "10.0.0.1",
+			reqHeaders: map[string]string{
+				traefikrealip.CfConnectingIP: "1.2.3.4",
+				traefikrealip.EoConnectingIP: "2.3.4.5",
+				traefikrealip.XRealIP:        "3.4.5.6",
+				traefikrealip.XForwardedFor:  "4.5.6.7",
+			},
+			expectedHeaders: map[string]string{
+				traefikrealip.XRealIP:       "1.2.3.4",
+				traefikrealip.XIsTrusted:    "yes",
+				traefikrealip.XForwardedFor: "1.2.3.4, 4.5.6.7",
+			},
+			expectedStatus: http.StatusOK,
+		},
 	}
 
 	for _, test := range testCases {
