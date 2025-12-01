@@ -15,7 +15,6 @@ import (
 
 var (
 	ErrRemoteIPProviderHTTPStatus = errors.New("failed to fetch remote IP provider ranges")
-	ErrRemoteIPProviderUnknown    = errors.New("unknown error after retries")
 )
 
 const (
