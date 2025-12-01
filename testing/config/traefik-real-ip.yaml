@@ -5,5 +5,6 @@ http:
         traefik-real-ip:
           thrustLocal: true
           thrustCloudFlare: true
+          thrustEdgeOne: true
           trustedIPs: [ ]
           logLevel: debug
