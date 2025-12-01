@@ -9,6 +9,9 @@ import (
 	"net/http"
 	"reflect"
 	"strings"
+	"sync"
+
+	"golang.org/x/sync/errgroup"
 )
 
 // Static errors.
@@ -67,45 +70,6 @@ func New(
 
 	trustedIPNets := make([]*net.IPNet, 0)
 
-	if config.ThrustLocal {
-		localIPs := ipResolver.getLocalIPs(ctx)
-		if len(localIPs) == 0 {
-			return nil, ErrGettingLocalIPs
-		}
-
-		trustedIPNets = append(trustedIPNets, localIPs...)
-	}
-
-	if config.ThrustCloudFlare {
-		cloudFlareIPs := ipResolver.getCloudFlareIPs(ctx)
-		if len(cloudFlareIPs) == 0 {
-			return nil, ErrGettingCloudflareIPs
-		}
-
-		ipResolver.logger.DebugContext(
-			ctx,
-			"Fetched Cloudflare IPs",
-			slog.Int("count", len(cloudFlareIPs)),
-		)
-
-		trustedIPNets = append(trustedIPNets, cloudFlareIPs...)
-	}
-
-	if config.ThrustEdgeOne {
-		edgeOneIPs := ipResolver.getEdgeOneIPs(ctx)
-		if len(edgeOneIPs) == 0 {
-			return nil, ErrGettingEdgeOneIPs
-		}
-
-		ipResolver.logger.DebugContext(
-			ctx,
-			"Fetched EdgeOne IPs",
-			slog.Int("count", len(edgeOneIPs)),
-		)
-
-		trustedIPNets = append(trustedIPNets, edgeOneIPs...)
-	}
-
 	for _, ipRange := range config.TrustedIPs {
 		_, ipNet, err := net.ParseCIDR(ipRange)
 		if err != nil {
@@ -114,6 +78,85 @@ func New(
 
 		trustedIPNets = append(trustedIPNets, ipNet)
 	}
+
+	results := sync.Map{}
+	errWg, errCtx := errgroup.WithContext(ctx)
+
+	if config.ThrustLocal {
+		errWg.Go(func() error {
+			ips := ipResolver.getLocalIPs(errCtx)
+			if len(ips) == 0 {
+				return ErrGettingLocalIPs
+			}
+
+			ipResolver.logger.DebugContext(
+				errCtx,
+				"Fetched local IPs",
+				slog.Int("count", len(ips)),
+			)
+			results.Store("local", ips)
+
+			return nil
+		})
+	}
+
+	if config.ThrustCloudFlare {
+		errWg.Go(func() error {
+			ips := ipResolver.getCloudFlareIPs(errCtx)
+			if len(ips) == 0 {
+				return ErrGettingCloudflareIPs
+			}
+
+			ipResolver.logger.DebugContext(
+				errCtx,
+				"Fetched Cloudflare IPs",
+				slog.Int("count", len(ips)),
+			)
+			results.Store("cloudflare", ips)
+
+			return nil
+		})
+	}
+
+	if config.ThrustEdgeOne {
+		errWg.Go(func() error {
+			ips := ipResolver.getEdgeOneIPs(errCtx)
+			if len(ips) == 0 {
+				return ErrGettingEdgeOneIPs
+			}
+
+			ipResolver.logger.DebugContext(
+				errCtx,
+				"Fetched EdgeOne IPs",
+				slog.Int("count", len(ips)),
+			)
+			results.Store("edgeone", ips)
+
+			return nil
+		})
+	}
+
+	err := errWg.Wait()
+	if err != nil {
+		return nil, fmt.Errorf("error fetching trusted IPs: %w", err)
+	}
+
+	results.Range(func(key, value any) bool {
+		ips, ok := value.([]*net.IPNet)
+		if !ok {
+			ipResolver.logger.WarnContext(
+				errCtx,
+				"Invalid type for trusted IPs",
+				slog.String("key", fmt.Sprintf("%v", key)),
+			)
+
+			return true
+		}
+
+		trustedIPNets = append(trustedIPNets, ips...)
+
+		return true
+	})
 
 	ipResolver.trustedIPNets = trustedIPNets
 
