@@ -1,4 +1,3 @@
-//nolint:staticcheck // no reason
 package traefik_real_ip
 
 import (

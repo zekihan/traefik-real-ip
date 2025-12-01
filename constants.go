@@ -1,4 +1,3 @@
-//nolint:staticcheck // no reason
 package traefik_real_ip
 
 const (
@@ -11,7 +10,6 @@ const (
 
 type ContextKey string
 
-const (
-	RetryCountKey ContextKey = "retryCount"
-	MaxRetryCount            = 3
-)
+const RetryCountKey ContextKey = "retryCount"
+
+const MaxRetryCount = 3

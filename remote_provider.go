@@ -1,4 +1,3 @@
-//nolint:staticcheck // no reason
 package traefik_real_ip
 
 import (
@@ -71,15 +70,35 @@ func (resolver *IPResolver) getProviderIPs(
 	return *provider.cache
 }
 
-func (resolver *IPResolver) getProviderIPsFromURL( //nolint:gocyclo // the function name is not too long.
+func (resolver *IPResolver) getProviderIPsFromURL(
 	ctx context.Context,
 	providerName string,
 	url string,
 ) ([]*net.IPNet, error) {
-	ips := make([]*net.IPNet, 0)
+	req, err := resolver.buildRequest(ctx, providerName, url)
+	if err != nil {
+		return nil, err
+	}
 
-	client := &http.Client{Timeout: defaultRemoteProviderTimeout}
+	resp, err := resolver.doRequestWithRetry(ctx, req, providerName, url)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
 
+	body, err := resolver.readResponseBody(ctx, resp, providerName, url)
+	if err != nil {
+		return nil, err
+	}
+
+	return resolver.parseCIDRs(ctx, body, providerName)
+}
+
+func (resolver *IPResolver) buildRequest(
+	ctx context.Context,
+	providerName string,
+	url string,
+) (*http.Request, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
 	if err != nil {
 		resolver.logger.ErrorContext(
@@ -90,20 +109,28 @@ func (resolver *IPResolver) getProviderIPsFromURL( //nolint:gocyclo // the funct
 			slog.Any("error", err),
 		)
 
-		return ips, fmt.Errorf("error creating HTTP request: %w", err)
+		return nil, fmt.Errorf("error creating HTTP request: %w", err)
 	}
 
-	var response *http.Response
+	return req, nil
+}
 
-	var lastErr error
+func (resolver *IPResolver) doRequestWithRetry(
+	ctx context.Context,
+	req *http.Request,
+	providerName string,
+	url string,
+) (*http.Response, error) {
+	client := &http.Client{Timeout: defaultRemoteProviderTimeout}
 
-	// Retry logic with exponential backoff.
+	var (
+		lastErr  error
+		response *http.Response
+	)
+
 	for attempt := 0; attempt <= maxRetries; attempt++ {
 		if attempt > 0 {
-			// Calculate delay with exponential backoff: 1s, 2s, 4s, 8s, 16s.
-
-			//nolint:gosec // acceptable in this context.
-			delay := initialRetryDelay * time.Duration(1<<uint(attempt-1))
+			delay := initialRetryDelay * (1 << (attempt - 1))
 			resolver.logger.InfoContext(
 				ctx,
 				"Retrying request",
@@ -116,32 +143,27 @@ func (resolver *IPResolver) getProviderIPsFromURL( //nolint:gocyclo // the funct
 			select {
 			case <-time.After(delay):
 			case <-ctx.Done():
-				return ips, fmt.Errorf("context canceled during retry: %w", ctx.Err())
+				return nil, fmt.Errorf("context canceled during retry: %w", ctx.Err())
 			}
 		}
 
-		response, err = client.Do(req)
-		if err != nil {
-			lastErr = err
+		response, lastErr = client.Do(req)
+		if lastErr != nil {
 			resolver.logger.WarnContext(
 				ctx,
 				"Request failed, will retry",
 				slog.String("provider", providerName),
 				slog.String("url", url),
 				slog.Int("attempt", attempt+1),
-				slog.Int("max_retries", maxRetries+1),
-				slog.Any("error", err),
+				slog.Any("error", lastErr),
 			)
 
 			continue
 		}
 
-		// Check status code.
 		if response.StatusCode != http.StatusOK {
 			lastErr = fmt.Errorf("%w: %s", ErrRemoteIPProviderHTTPStatus, response.Status)
-			_ = response.Body.Close()
 
-			// Don't retry on client errors (4xx) - these won't be fixed by retrying.
 			if response.StatusCode >= 400 && response.StatusCode < 500 {
 				resolver.logger.ErrorContext(
 					ctx,
@@ -151,48 +173,67 @@ func (resolver *IPResolver) getProviderIPsFromURL( //nolint:gocyclo // the funct
 					slog.Int("status_code", response.StatusCode),
 				)
 
-				return ips, lastErr
+				closeErr := response.Body.Close()
+				if closeErr != nil {
+					resolver.logger.WarnContext(
+						ctx,
+						"Error closing response body",
+						slog.String("provider", providerName),
+						slog.String("url", url),
+						slog.Any("error", closeErr),
+					)
+				}
+
+				return nil, lastErr
 			}
 
 			resolver.logger.WarnContext(
 				ctx,
-				"Request returned non-OK status, will retry",
+				"Non-OK status, retrying",
 				slog.String("provider", providerName),
 				slog.String("url", url),
 				slog.Int("status_code", response.StatusCode),
-				slog.Int("attempt", attempt+1),
-				slog.Int("max_retries", maxRetries+1),
 			)
+
+			closeErr := response.Body.Close()
+			if closeErr != nil {
+				resolver.logger.WarnContext(
+					ctx,
+					"Error closing response body",
+					slog.String("provider", providerName),
+					slog.String("url", url),
+					slog.Any("error", closeErr),
+				)
+			}
 
 			continue
 		}
 
-		// Success - break out of retry loop.
-		break
+		// Success.
+		return response, nil
 	}
 
-	// If we exhausted all retries.
-	if response == nil || response.StatusCode != http.StatusOK {
-		resolver.logger.ErrorContext(
-			ctx,
-			"Failed to fetch provider IPs after retries",
-			slog.String("provider", providerName),
-			slog.String("url", url),
-			slog.Int("max_retries", maxRetries+1),
-			slog.Any("error", lastErr),
-		)
+	resolver.logger.ErrorContext(
+		ctx,
+		"Failed to fetch provider IPs after retries",
+		slog.String("provider", providerName),
+		slog.String("url", url),
+		slog.Int("max_retries", maxRetries+1),
+		slog.Any("error", lastErr),
+	)
 
-		if lastErr != nil {
-			return ips, fmt.Errorf("error fetching %s IPs after %d retries: %w",
-				providerName, maxRetries+1, lastErr)
-		}
+	return nil, fmt.Errorf(
+		"error fetching %s IPs after %d retries: %w",
+		providerName, maxRetries+1, lastErr,
+	)
+}
 
-		return ips, fmt.Errorf("%w: provider %s", ErrRemoteIPProviderUnknown, providerName)
-	}
-
-	defer func() { _ = response.Body.Close() }()
-
-	bytes, err := io.ReadAll(response.Body)
+func (resolver *IPResolver) readResponseBody(
+	ctx context.Context,
+	resp *http.Response,
+	providerName, url string,
+) (string, error) {
+	bytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		resolver.logger.ErrorContext(
 			ctx,
@@ -202,10 +243,18 @@ func (resolver *IPResolver) getProviderIPsFromURL( //nolint:gocyclo // the funct
 			slog.Any("error", err),
 		)
 
-		return ips, fmt.Errorf("error reading response body: %w", err)
+		return "", fmt.Errorf("error reading response body: %w", err)
 	}
 
-	body := string(bytes)
+	return string(bytes), nil
+}
+
+func (resolver *IPResolver) parseCIDRs(
+	ctx context.Context,
+	body string,
+	providerName string,
+) ([]*net.IPNet, error) {
+	ips := make([]*net.IPNet, 0)
 
 	//nolint:modernize // yaegi does not support strings.SplitSeq
 	lines := strings.Split(body, "\n")
@@ -226,7 +275,7 @@ func (resolver *IPResolver) getProviderIPsFromURL( //nolint:gocyclo // the funct
 				slog.Any("error", err),
 			)
 
-			return ips, fmt.Errorf("error parsing CIDR %s: %w", cidr, err)
+			return nil, fmt.Errorf("error parsing CIDR %s: %w", cidr, err)
 		}
 
 		ips = append(ips, block)

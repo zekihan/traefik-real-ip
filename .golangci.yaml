@@ -340,6 +340,7 @@ linters:
     staticcheck:
       checks:
         - all
+        - -ST1003
   exclusions:
     generated: lax
     presets:
