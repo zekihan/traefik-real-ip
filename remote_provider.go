@@ -35,12 +35,6 @@ func (resolver *IPResolver) getProviderIPs(
 	ctx context.Context,
 	provider remoteIPProvider,
 ) []*net.IPNet {
-	// If cache is already populated, return it directly to avoid
-	// triggering provider.once.Do (which may fetch remote URLs).
-	if provider.cache != nil && *provider.cache != nil {
-		return *provider.cache
-	}
-
 	provider.once.Do(func() {
 		results := make([]*net.IPNet, 0)
 
