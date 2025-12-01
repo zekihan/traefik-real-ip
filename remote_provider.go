@@ -19,7 +19,7 @@ var (
 
 const (
 	defaultRemoteProviderTimeout = 10 * time.Second
-	maxRetries                   = 5
+	maxRetries                   = 3
 	initialRetryDelay            = 1 * time.Second
 )
 
