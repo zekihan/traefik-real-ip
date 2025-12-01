@@ -21,6 +21,13 @@ var (
 	ErrPanic                 = errors.New("panic")
 )
 
+const (
+	LogLevelDebug = "debug"
+	LogLevelInfo  = "info"
+	LogLevelWarn  = "warn"
+	LogLevelError = "error"
+)
+
 // Config the plugin configuration.
 type Config struct {
 	LogLevel         string   `json:"logLevel,omitempty"`
@@ -106,13 +113,13 @@ func New(
 	logLevel := &slog.LevelVar{}
 
 	switch strings.ToLower(config.LogLevel) {
-	case "debug":
+	case LogLevelDebug:
 		logLevel.Set(slog.LevelDebug)
-	case "info":
+	case LogLevelInfo:
 		logLevel.Set(slog.LevelInfo)
-	case "warn":
+	case LogLevelWarn:
 		logLevel.Set(slog.LevelWarn)
-	case "error":
+	case LogLevelError:
 		logLevel.Set(slog.LevelError)
 	case "":
 		logLevel.Set(slog.LevelInfo)
