@@ -69,6 +69,31 @@ func New(
 		name: name,
 	}
 
+	logLevel := &slog.LevelVar{}
+
+	switch strings.ToLower(config.LogLevel) {
+	case LogLevelDebug:
+		logLevel.Set(slog.LevelDebug)
+	case LogLevelInfo:
+		logLevel.Set(slog.LevelInfo)
+	case LogLevelWarn:
+		logLevel.Set(slog.LevelWarn)
+	case LogLevelError:
+		logLevel.Set(slog.LevelError)
+	case "":
+		logLevel.Set(slog.LevelInfo)
+	default:
+		slog.WarnContext(
+			ctx,
+			"Invalid log level, using info",
+			slog.String("level", config.LogLevel),
+		)
+		logLevel.Set(slog.LevelInfo)
+	}
+
+	pluginLogger := NewPluginLogger(name, logLevel)
+	ipResolver.logger = pluginLogger
+
 	trustedIPNets := make([]*net.IPNet, 0)
 
 	if config.ThrustLocal {
@@ -108,31 +133,6 @@ func New(
 	}
 
 	ipResolver.trustedIPNets = trustedIPNets
-
-	logLevel := &slog.LevelVar{}
-
-	switch strings.ToLower(config.LogLevel) {
-	case LogLevelDebug:
-		logLevel.Set(slog.LevelDebug)
-	case LogLevelInfo:
-		logLevel.Set(slog.LevelInfo)
-	case LogLevelWarn:
-		logLevel.Set(slog.LevelWarn)
-	case LogLevelError:
-		logLevel.Set(slog.LevelError)
-	case "":
-		logLevel.Set(slog.LevelInfo)
-	default:
-		slog.WarnContext(
-			ctx,
-			"Invalid log level, using info",
-			slog.String("level", config.LogLevel),
-		)
-		logLevel.Set(slog.LevelInfo)
-	}
-
-	pluginLogger := NewPluginLogger(name, logLevel)
-	ipResolver.logger = pluginLogger
 
 	return ipResolver, nil
 }
