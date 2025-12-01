@@ -111,6 +111,12 @@ func New(
 			return nil, ErrGettingCloudflareIPs
 		}
 
+		ipResolver.logger.DebugContext(
+			ctx,
+			"Fetched Cloudflare IPs",
+			slog.Int("count", len(cloudFlareIPs)),
+		)
+
 		trustedIPNets = append(trustedIPNets, cloudFlareIPs...)
 	}
 
@@ -119,6 +125,12 @@ func New(
 		if len(edgeOneIPs) == 0 {
 			return nil, ErrGettingEdgeOneIPs
 		}
+
+		ipResolver.logger.DebugContext(
+			ctx,
+			"Fetched EdgeOne IPs",
+			slog.Int("count", len(edgeOneIPs)),
+		)
 
 		trustedIPNets = append(trustedIPNets, edgeOneIPs...)
 	}
