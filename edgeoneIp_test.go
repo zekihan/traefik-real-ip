@@ -40,26 +40,29 @@ func TestIPResolver_getEdgeOneIPs(t *testing.T) {
 	}))
 	defer ipv6Server.Close()
 
+	originalProvider := edgeOneProvider
+	originalInstance := edgeOneIPsInstance
+
 	// Use local once and cache variables to avoid package-level state issues.
 	var localOnce sync.Once
-	var localCache []*net.IPNet
 
-	originalProvider := edgeOneProvider
+	edgeOneIPsInstance = nil
 	edgeOneProvider = remoteIPProvider{
 		name:  originalProvider.name,
 		urls:  []string{ipv4Server.URL, ipv6Server.URL},
 		once:  &localOnce,
-		cache: &localCache,
+		cache: &edgeOneIPsInstance,
 	}
 
 	defer func() {
 		edgeOneProvider = originalProvider
+		edgeOneIPsInstance = originalInstance
 	}()
 
 	t.Run("singleton behavior", func(t *testing.T) {
 		// Reset local once and cache for each subtest run.
 		localOnce = sync.Once{}
-		localCache = nil
+		edgeOneIPsInstance = nil
 
 		ips1 := resolver.getEdgeOneIPs(t.Context())
 		ips2 := resolver.getEdgeOneIPs(t.Context())
