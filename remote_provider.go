@@ -16,9 +16,9 @@ import (
 var ErrRemoteIPProviderHTTPStatus = errors.New("failed to fetch remote IP provider ranges")
 
 const (
-	defaultRemoteProviderTimeout = 10 * time.Second
-	maxRetries                   = 3
-	initialRetryDelay            = 1 * time.Second
+	defaultRemoteProviderTimeout = 2 * time.Second
+	maxRetries                   = 5
+	initialRetryDelay            = 2 * time.Second
 )
 
 // remoteIPProvider describes a remote service exposing CIDR blocks.
@@ -121,7 +121,7 @@ func (resolver *IPResolver) doRequestWithRetry(
 
 	for attempt := 0; attempt <= maxRetries; attempt++ {
 		if attempt > 0 {
-			delay := initialRetryDelay * (1 << (attempt - 1))
+			delay := initialRetryDelay
 			resolver.logger.InfoContext(
 				ctx,
 				"Retrying request",
