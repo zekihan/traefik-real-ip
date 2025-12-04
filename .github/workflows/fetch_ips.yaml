@@ -1,0 +1,36 @@
+name: Fetch and Update Trusted IPs
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 0 * * *' # Run every day at midnight
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  pr:
+    runs-on: zekihan.traefik-real-ip
+    steps:
+      - name: Check Out The Repo
+        uses: actions/checkout@v6.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Fetch IPs and Update Config
+        run: |
+          mkdir -p remote_ips
+
+          ./scripts/fetch_with_retries.sh "https://api.edgeone.ai/ips" remote_ips/edgeone 10 true
+          ./scripts/fetch_with_retries.sh "https://www.cloudflare.com/ips-v4" remote_ips/cloudflare_v4 6 false
+          ./scripts/fetch_with_retries.sh "https://www.cloudflare.com/ips-v6" remote_ips/cloudflare_v6 6 false
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v7.0.9
+        with:
+          commit-message: Update trusted IPs
+          title: Update trusted IPs in traefik-real-ip middleware
+          body: Update the trusted IPs for Cloudflare and EdgeOne in the traefik-real-ip middleware configuration.
+          branch: automated-update-trusted-ips
+          reviewers: zekihan
