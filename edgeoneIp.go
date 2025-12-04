@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	edgeOneIPURL = "https://api.edgeone.ai/ips"
+	edgeOneIPURL = "https://raw.githubusercontent.com/zekihan/traefik-real-ip/refs/heads/main/remote_ips/edgeone"
 )
 
 var (
