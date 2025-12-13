@@ -10,10 +10,6 @@ import (
 
 func TestNewPluginLogger(t *testing.T) {
 	logger := NewPluginLogger(t.Context(), "test-plugin", LogLevelDebug)
-	if logger == nil {
-		t.Fatal("Expected non-nil PluginLogger")
-	}
-
 	if logger.pluginName != "test-plugin" {
 		t.Errorf("Expected pluginName to be 'test-plugin', got '%s'", logger.pluginName)
 	}
