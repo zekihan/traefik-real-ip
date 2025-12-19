@@ -118,7 +118,7 @@ docker run -d \
     --health-interval=1s \
     --health-timeout=3s \
     --health-retries=5 \
-    docker.io/traefik:v3.6.2@sha256:aaf0f6185419a50c74651448c1a5bf4606bd2d2ddb7b8749eed505d55bf8b8ea
+    docker.io/traefik:v3.6.5@sha256:4ec25d36f3203240bc1631bb43954c61e872331ab693e741398f1dde6974c145
 
 wait_for_services "traefik-real-ip_traefik"
 
