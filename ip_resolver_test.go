@@ -11,7 +11,7 @@ func TestIPResolver_getRealIP(t *testing.T) {
 		logger: NewPluginLogger(t.Context(), "test", LogLevelDebug),
 	}
 
-	trustedIPNets := make([]*net.IPNet, 0)
+	trustedIPNets := make([]*net.IPNet, 0, len(ipResolver.trustedIPNets))
 	trustedIPNets = append(trustedIPNets, ipResolver.getLocalIPs(t.Context())...)
 	trustedIPNets = append(trustedIPNets, ipResolver.getCloudFlareIPs(t.Context())...)
 

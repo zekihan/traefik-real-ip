@@ -15,14 +15,13 @@ var (
 
 func (resolver *IPResolver) getLocalIPs(ctx context.Context) []*net.IPNet {
 	localIPsOnce.Do(func() {
-		localIPsInstance = make([]*net.IPNet, 0)
-
 		ips, err := resolver.getLocalIPsHardcoded(ctx)
 		if err != nil {
 			resolver.logger.ErrorContext(ctx, "Error fetching local IPs", slog.Any("error", err))
 			panic(err)
 		}
 
+		localIPsInstance = make([]*net.IPNet, 0, len(ips))
 		localIPsInstance = append(localIPsInstance, ips...)
 	})
 

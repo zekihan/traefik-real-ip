@@ -143,7 +143,11 @@ func (resolver *IPResolver) handleXForwardedFor(
 			if tempIP != nil {
 				xForwardedForValues = append(xForwardedForValues, tempIP)
 			} else {
-				resolver.logger.DebugContext(ctx, "Invalid IP format in X-Forwarded-For", slog.String("value", xForwardedForValue))
+				resolver.logger.DebugContext(
+					ctx,
+					"Invalid IP format in X-Forwarded-For",
+					slog.String("value", xForwardedForValue),
+				)
 			}
 		}
 	}
