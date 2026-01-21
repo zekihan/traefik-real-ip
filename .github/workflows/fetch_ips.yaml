@@ -27,7 +27,7 @@ jobs:
           ./scripts/fetch_with_retries.sh "https://www.cloudflare.com/ips-v6" remote_ips/cloudflare_v6 6 false
 
       - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v8.0.0
+        uses: peter-evans/create-pull-request@v8.1.0
         with:
           commit-message: Update trusted IPs
           title: Update trusted IPs in traefik-real-ip middleware
