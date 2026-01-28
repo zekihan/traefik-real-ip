@@ -18,7 +18,7 @@ env:
 
 jobs:
   release:
-    runs-on: zekihan.traefik-real-ip
+    runs-on: ubuntu-latest
     steps:
       - name: Check Out The Repo
         uses: actions/checkout@v6.0.2
