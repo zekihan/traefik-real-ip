@@ -16,6 +16,7 @@ type testCase struct {
 	remote          string
 	trustedIPs      []string
 	expectedStatus  int
+	denyUntrusted   bool
 }
 
 func setupTest(
@@ -26,6 +27,7 @@ func setupTest(
 
 	cfg := traefikrealip.CreateConfig()
 	cfg.TrustedIPs = test.trustedIPs
+	cfg.DenyUntrusted = test.denyUntrusted
 
 	ctx := t.Context()
 	next := http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {})
@@ -499,5 +501,89 @@ func assertHeader(t *testing.T, req *http.Request, key, expected string) {
 			expected,
 			strings.Join(headerValues, ", "),
 		)
+	}
+}
+
+func TestIPResolver_DenyUntrusted(t *testing.T) {
+	testCases := []*testCase{
+		{
+			desc:            "Deny untrusted IP - not from trusted source",
+			remote:          "5.6.7.8",
+			reqHeaders:      map[string]string{},
+			denyUntrusted:   true,
+			expectedHeaders: map[string]string{},
+			expectedStatus:  http.StatusForbidden,
+		},
+		{
+			desc:          "Deny untrusted IP - from trusted source (local)",
+			remote:        "10.0.0.1",
+			reqHeaders:    map[string]string{},
+			denyUntrusted: true,
+			expectedHeaders: map[string]string{
+				traefikrealip.XRealIP:       "10.0.0.1",
+				traefikrealip.XIsTrusted:    "yes",
+				traefikrealip.XForwardedFor: "10.0.0.1",
+			},
+			expectedStatus: http.StatusOK,
+		},
+		{
+			desc:   "Deny untrusted IP - from Cloudflare source",
+			remote: "103.21.244.23",
+			reqHeaders: map[string]string{
+				traefikrealip.CfConnectingIP: "1.2.3.4",
+			},
+			denyUntrusted: true,
+			expectedHeaders: map[string]string{
+				traefikrealip.XRealIP:       "1.2.3.4",
+				traefikrealip.XIsTrusted:    "yes",
+				traefikrealip.XForwardedFor: "1.2.3.4",
+			},
+			expectedStatus: http.StatusOK,
+		},
+		{
+			desc:       "Deny untrusted IP - from custom trusted IP",
+			remote:     "198.51.100.10",
+			trustedIPs: []string{"198.51.100.0/24"},
+			reqHeaders: map[string]string{
+				traefikrealip.XRealIP: "1.2.3.4",
+			},
+			denyUntrusted: true,
+			expectedHeaders: map[string]string{
+				traefikrealip.XRealIP:       "1.2.3.4",
+				traefikrealip.XIsTrusted:    "yes",
+				traefikrealip.XForwardedFor: "1.2.3.4",
+			},
+			expectedStatus: http.StatusOK,
+		},
+		{
+			desc:          "DenyUntrusted disabled - untrusted IP allowed",
+			remote:        "5.6.7.8",
+			reqHeaders:    map[string]string{},
+			denyUntrusted: false,
+			expectedHeaders: map[string]string{
+				traefikrealip.XRealIP:       "5.6.7.8",
+				traefikrealip.XIsTrusted:    "no",
+				traefikrealip.XForwardedFor: "5.6.7.8",
+			},
+			expectedStatus: http.StatusOK,
+		},
+		{
+			desc:   "Deny untrusted with spoofed Cf-Connecting-Ip header",
+			remote: "5.6.7.8",
+			reqHeaders: map[string]string{
+				traefikrealip.CfConnectingIP: "1.2.3.4",
+			},
+			denyUntrusted:   true,
+			expectedHeaders: map[string]string{},
+			expectedStatus:  http.StatusForbidden,
+		},
+	}
+
+	for _, test := range testCases {
+		t.Run(test.desc, func(t *testing.T) {
+			recorder, req, handler := setupTest(t, test)
+			handler.ServeHTTP(recorder, req)
+			validateTestResult(t, test, recorder, req)
+		})
 	}
 }
