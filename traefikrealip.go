@@ -21,6 +21,7 @@ var (
 	ErrGettingEdgeOneIPs     = errors.New("error getting EdgeOne IPs")
 	ErrInvalidTrustedIPRange = errors.New("invalid trusted IP range")
 	ErrPanic                 = errors.New("panic")
+	ErrUntrustedIP           = errors.New("request from untrusted IP denied")
 )
 
 // Config the plugin configuration.
@@ -30,6 +31,7 @@ type Config struct {
 	ThrustLocal      bool     `json:"thrustLocal,omitempty"`
 	ThrustCloudFlare bool     `json:"thrustCloudFlare,omitempty"`
 	ThrustEdgeOne    bool     `json:"thrustEdgeOne,omitempty"`
+	DenyUntrusted    bool     `json:"denyUntrusted,omitempty"`
 }
 
 // CreateConfig creates the default plugin configuration.
@@ -40,6 +42,7 @@ func CreateConfig() *Config {
 		ThrustEdgeOne:    false,
 		TrustedIPs:       make([]string, 0),
 		LogLevel:         "info",
+		DenyUntrusted:    false,
 	}
 }
 
@@ -193,6 +196,17 @@ func (resolver *IPResolver) ServeHTTP(rw http.ResponseWriter, req *http.Request)
 		slog.String("ip", srcIP.String()),
 		slog.Bool("is_trusted", isTrusted),
 	)
+
+	if !isTrusted && resolver.conf.DenyUntrusted {
+		resolver.logger.WarnContext(
+			ctx,
+			"Denying request from untrusted IP",
+			slog.String("ip", srcIP.String()),
+		)
+		http.Error(rw, ErrUntrustedIP.Error(), http.StatusForbidden)
+
+		return
+	}
 
 	if isTrusted {
 		req.Header.Set(XIsTrusted, "yes")

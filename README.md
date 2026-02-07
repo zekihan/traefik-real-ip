@@ -67,25 +67,44 @@ http:
             - "1.2.3.4/32"
             - "10.0.0.0/8"
           logLevel: info
+          denyUntrusted: false
 ```
 
 ### Configuration Options
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `thrustLocal` | boolean | `true` | Trust local and private IP ranges |
-| `thrustCloudFlare` | boolean | `true` | Trust Cloudflare IP ranges |
-| `thrustEdgeOne` | boolean | `false` | Trust EdgeOne IP ranges |
-| `trustedIPs` | array of strings | `[]` | Additional IP ranges to trust in CIDR notation |
-| `logLevel` | string | `info` | Log level (debug, info, warn, error) |
+| Option             | Type             | Default | Description                                         |
+|--------------------|------------------|---------|-----------------------------------------------------|
+| `thrustLocal`      | boolean          | `true`  | Trust local and private IP ranges                   |
+| `thrustCloudFlare` | boolean          | `true`  | Trust Cloudflare IP ranges                          |
+| `thrustEdgeOne`    | boolean          | `false` | Trust EdgeOne IP ranges                             |
+| `trustedIPs`       | array of strings | `[]`    | Additional IP ranges to trust in CIDR notation      |
+| `logLevel`         | string           | `info`  | Log level (debug, info, warn, error)                |
+| `denyUntrusted`    | boolean          | `false` | Deny requests from untrusted IPs with 403 Forbidden |
 
 ## How It Works
 
 1. The plugin extracts the source IP from the incoming request
 2. It checks if the source IP is in the trusted IPs list
-3. If trusted, it looks for real IP in headers in this order: `Cf-Connecting-Ip`, `Eo-Connecting-Ip`, `X-Real-IP`, then `X-Forwarded-For`.
-4. It updates the request headers with the discovered real IP
-5. Adds an `X-Is-Trusted: yes|no` header indicating if the source was trusted
+3. If `denyUntrusted` is enabled and the source IP is not trusted, it returns a 403 Forbidden response
+4. If trusted, it looks for real IP in headers in this order: `Cf-Connecting-Ip`, `Eo-Connecting-Ip`, `X-Real-IP`, then `X-Forwarded-For`.
+5. It updates the request headers with the discovered real IP
+6. Adds an `X-Is-Trusted: yes|no` header indicating if the source was trusted
+
+## Protecting Against Direct Access
+
+If your server has a public IP but uses a WAF/CDN like Cloudflare, you may want to ensure that traffic can only reach your server through the WAF/CDN. Enable the `denyUntrusted` option to reject any traffic that doesn't come from trusted IP ranges (such as Cloudflare IPs).
+
+```yaml
+http:
+  middlewares:
+    traefik-real-ip:
+      plugin:
+        traefik-real-ip:
+          thrustCloudFlare: true
+          denyUntrusted: true
+```
+
+With this configuration, requests that bypass Cloudflare and reach your server directly will receive a `403 Forbidden` response.
 
 ## Development
 
