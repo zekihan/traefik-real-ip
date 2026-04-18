@@ -33,7 +33,7 @@ jobs:
           cache-dependency-path: go.sum
 
       - name: Set up GoReleaser
-        uses: goreleaser/goreleaser-action@v7.0.0
+        uses: goreleaser/goreleaser-action@v7.1.0
         with:
           install-only: true
 
