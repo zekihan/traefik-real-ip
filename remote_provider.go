@@ -161,7 +161,7 @@ func (resolver *IPResolver) doRequestWithRetry(
 					"Client error, will not retry",
 					slog.String("provider", providerName),
 					slog.String("url", url),
-					slog.Int("status_code", response.StatusCode),
+					slog.Int("statusCode", response.StatusCode),
 				)
 
 				closeErr := response.Body.Close()
@@ -183,7 +183,7 @@ func (resolver *IPResolver) doRequestWithRetry(
 				"Non-OK status, retrying",
 				slog.String("provider", providerName),
 				slog.String("url", url),
-				slog.Int("status_code", response.StatusCode),
+				slog.Int("statusCode", response.StatusCode),
 			)
 
 			closeErr := response.Body.Close()
@@ -209,7 +209,7 @@ func (resolver *IPResolver) doRequestWithRetry(
 		"Failed to fetch provider IPs after retries",
 		slog.String("provider", providerName),
 		slog.String("url", url),
-		slog.Int("max_retries", maxRetries+1),
+		slog.Int("maxRetries", maxRetries+1),
 		slog.Any("error", lastErr),
 	)
 

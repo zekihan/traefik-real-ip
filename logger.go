@@ -95,8 +95,8 @@ func ErrorAttr(val any) slog.Attr {
 	n := runtime.Stack(stack, false)
 
 	return slog.Group("error",
-		slog.String("exception.message", errMsg),
-		slog.String("exception.stacktrace", string(stack[:n])),
+		slog.String("exceptionMessage", errMsg),
+		slog.String("exceptionStacktrace", string(stack[:n])),
 	)
 }
 
@@ -107,7 +107,7 @@ func ErrorAttrWithoutStack(val any) slog.Attr {
 	}
 
 	return slog.Group("error",
-		slog.String("exception.message", errMsg),
+		slog.String("exceptionMessage", errMsg),
 	)
 }
 

@@ -194,7 +194,7 @@ func (resolver *IPResolver) ServeHTTP(rw http.ResponseWriter, req *http.Request)
 		ctx,
 		"IP is trusted",
 		slog.String("ip", srcIP.String()),
-		slog.Bool("is_trusted", isTrusted),
+		slog.Bool("isTrusted", isTrusted),
 	)
 
 	if !isTrusted && resolver.conf.DenyUntrusted {
