@@ -60,11 +60,11 @@ func TestErrorAttr(t *testing.T) {
 	foundStack := false
 
 	for _, a := range group {
-		if a.Key == "exception.message" && a.Value.String() == "test error" {
+		if a.Key == "exceptionMessage" && a.Value.String() == "test error" {
 			foundMsg = true
 		}
 
-		if a.Key == "exception.stacktrace" && a.Value.String() != "" {
+		if a.Key == "exceptionStacktrace" && a.Value.String() != "" {
 			foundStack = true
 		}
 	}
@@ -84,13 +84,13 @@ func TestErrorAttrWithoutStack(t *testing.T) {
 	foundMsg := false
 
 	for _, a := range group {
-		if a.Key == "exception.message" && a.Value.String() == "test error" {
+		if a.Key == "exceptionMessage" && a.Value.String() == "test error" {
 			foundMsg = true
 		}
 	}
 
 	if !foundMsg {
-		t.Errorf("ErrorAttrWithoutStack missing exception.message: %+v", group)
+		t.Errorf("ErrorAttrWithoutStack missing exceptionMessage: %+v", group)
 	}
 }
 
