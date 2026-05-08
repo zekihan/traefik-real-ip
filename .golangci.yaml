@@ -61,6 +61,7 @@ linters:
     - wsl
     - goheader
     - testpackage
+    - gomodguard
   settings:
     depguard:
       rules:
