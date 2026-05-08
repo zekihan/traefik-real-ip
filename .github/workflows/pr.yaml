@@ -11,7 +11,7 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: write
+  contents: read
 
 env:
   GOPRIVATE_GITHUB_TOKEN: ${{ secrets.GOPRIVATE_GITHUB_TOKEN }}
@@ -74,5 +74,12 @@ jobs:
           make test
 
       - name: Integration Test
+        id: integration_test
         run: |
           make test/integration
+
+      - name: Show integration logs on failure
+        if: failure() && steps.integration_test.outcome == 'failure'
+        run: |
+          ./scripts/integration_test_wrapper.sh --logs all
+

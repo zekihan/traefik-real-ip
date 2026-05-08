@@ -12,6 +12,7 @@ PROJECT_ROOT="$(pwd)"
 TRAEFIK_PORT="${TRAEFIK_PORT:-4008}"
 COMPOSE_DIR="${COMPOSE_DIR:-testing}"
 TIMEOUT="${TIMEOUT:-60}"
+SCRIPTS_CONTAINER_NAME="${SCRIPTS_CONTAINER_NAME:-traefik-real-ip_scripts}"
 
 cd "${PROJECT_ROOT}/${COMPOSE_DIR}"
 
@@ -121,6 +122,19 @@ docker run -d \
     docker.io/traefik:v3.6.5@sha256:4ec25d36f3203240bc1631bb43954c61e872331ab693e741398f1dde6974c145
 
 wait_for_services "traefik-real-ip_traefik"
+
+docker run -d \
+    --name "${SCRIPTS_CONTAINER_NAME}" \
+    --network traefik-real-ip_proxy \
+    -v "${PROJECT_ROOT}/scripts":/scripts:ro \
+    -v /etc/localtime:/etc/localtime:ro \
+    -w /scripts \
+    docker.io/curlimages/curl:8.8.0 \
+    sh -c "sleep infinity"
+
+docker network connect traefik-real-ip_default "${SCRIPTS_CONTAINER_NAME}" || true
+
+wait_for_services "${SCRIPTS_CONTAINER_NAME}"
 
 docker run -d \
     --name traefik-real-ip_whoami \

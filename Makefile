@@ -43,7 +43,7 @@ test/cover: tidy
 ## test: run integration tests
 .PHONY: test/integration
 test/integration: tidy
-	./scripts/integration_test.sh -v
+	./scripts/integration_test_wrapper.sh -v
 
 # release: build the binary and create a release
 .PHONY: release
