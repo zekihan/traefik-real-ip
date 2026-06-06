@@ -295,10 +295,9 @@ func TestGetProviderIPs_MultiURL_FirstFails(t *testing.T) {
 
 	resolver := newTestResolver(t)
 
-	cache := make([]*net.IPNet, 0)
 	provider := remoteIPProvider{
 		once:  &sync.Once{},
-		cache: &cache,
+		cache: new(make([]*net.IPNet, 0)),
 		name:  "test",
 		urls:  []string{failServer.URL, successServer.URL},
 	}
