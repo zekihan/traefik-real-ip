@@ -173,7 +173,7 @@ func (resolver *IPResolver) ServeHTTP(rw http.ResponseWriter, req *http.Request)
 
 	srcIP, err := resolver.getSrcIP(ctx, req)
 	if err != nil {
-		resolver.logger.ErrorContext(ctx, "Error getting source IP", err)
+		resolver.logger.ErrorContext(ctx, "Error getting source IP", slog.Any("error", err))
 		http.Error(rw, err.Error(), http.StatusBadRequest)
 
 		return
@@ -183,7 +183,7 @@ func (resolver *IPResolver) ServeHTTP(rw http.ResponseWriter, req *http.Request)
 
 	ip, err := resolver.getRealIP(ctx, srcIP, req)
 	if err != nil {
-		resolver.logger.ErrorContext(ctx, "Error getting real IP", err)
+		resolver.logger.ErrorContext(ctx, "Error getting real IP", slog.Any("error", err))
 		http.Error(rw, err.Error(), http.StatusBadRequest)
 
 		return

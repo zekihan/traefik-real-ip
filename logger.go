@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"runtime"
 	"runtime/debug"
 	"strings"
 )
@@ -53,11 +52,11 @@ func NewPluginLogger(ctx context.Context, pluginName, logLevelStr string) *Plugi
 		ReplaceAttr: replaceAttr,
 	}
 
-	handler := slog.NewTextHandler(os.Stdout, opts)
-	slog.SetDefault(slog.New(handler))
+	l := slog.New(slog.NewTextHandler(os.Stdout, opts))
+	slog.SetDefault(l)
 
 	return &PluginLogger{
-		logger:     slog.Default(),
+		logger:     l,
 		pluginName: pluginName,
 	}
 }
@@ -92,11 +91,10 @@ func ErrorAttr(val any) slog.Attr {
 	}
 
 	stack := debug.Stack()
-	n := runtime.Stack(stack, false)
 
 	return slog.Group("error",
 		slog.String("exceptionMessage", errMsg),
-		slog.String("exceptionStacktrace", string(stack[:n])),
+		slog.String("exceptionStacktrace", string(stack)),
 	)
 }
 

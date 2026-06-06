@@ -209,7 +209,7 @@ func (resolver *IPResolver) doRequestWithRetry(
 		"Failed to fetch provider IPs after retries",
 		slog.String("provider", providerName),
 		slog.String("url", url),
-		slog.Int("maxRetries", maxRetries+1),
+		slog.Int("totalAttempts", maxRetries+1),
 		slog.Any("error", lastErr),
 	)
 

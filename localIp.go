@@ -18,7 +18,8 @@ func (resolver *IPResolver) getLocalIPs(ctx context.Context) []*net.IPNet {
 		ips, err := resolver.getLocalIPsHardcoded(ctx)
 		if err != nil {
 			resolver.logger.ErrorContext(ctx, "Error fetching local IPs", slog.Any("error", err))
-			panic(err)
+
+			return
 		}
 
 		localIPsInstance = make([]*net.IPNet, 0, len(ips))

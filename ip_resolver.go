@@ -137,18 +137,16 @@ func (resolver *IPResolver) handleXForwardedFor(
 	xForwardedForValuesStr := strings.Split(xForwardedForList[0], ",")
 	xForwardedForValues := make([]net.IP, 0)
 
-	if len(xForwardedForValuesStr) > 0 {
-		for _, xForwardedForValue := range xForwardedForValuesStr {
-			tempIP := net.ParseIP(strings.TrimSpace(xForwardedForValue))
-			if tempIP != nil {
-				xForwardedForValues = append(xForwardedForValues, tempIP)
-			} else {
-				resolver.logger.DebugContext(
-					ctx,
-					"Invalid IP format in X-Forwarded-For",
-					slog.String("value", xForwardedForValue),
-				)
-			}
+	for _, xForwardedForValue := range xForwardedForValuesStr {
+		tempIP := net.ParseIP(strings.TrimSpace(xForwardedForValue))
+		if tempIP != nil {
+			xForwardedForValues = append(xForwardedForValues, tempIP)
+		} else {
+			resolver.logger.DebugContext(
+				ctx,
+				"Invalid IP format in X-Forwarded-For",
+				slog.String("value", xForwardedForValue),
+			)
 		}
 	}
 
@@ -165,7 +163,7 @@ func (resolver *IPResolver) handleXForwardedFor(
 
 		resolver.logger.DebugContext(
 			ctx,
-			"X-Forwarded-For IP is resolver local IP, skipping",
+			"X-Forwarded-For IP is a private IP, skipping",
 			slog.String("ip", xForwardedForValue.String()),
 		)
 	}
