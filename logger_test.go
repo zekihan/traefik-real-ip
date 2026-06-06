@@ -15,6 +15,25 @@ func TestNewPluginLogger(t *testing.T) {
 	}
 }
 
+func TestNewPluginLogger_LogLevels(t *testing.T) {
+	levels := []string{
+		LogLevelDebug,
+		LogLevelInfo,
+		LogLevelWarn,
+		LogLevelError,
+		"",
+		"invalid-level",
+	}
+	for _, level := range levels {
+		t.Run(level, func(t *testing.T) {
+			logger := NewPluginLogger(t.Context(), "test", level)
+			if logger == nil {
+				t.Errorf("expected non-nil logger for level %q", level)
+			}
+		})
+	}
+}
+
 func TestPluginLogger_LogMethods(t *testing.T) {
 	level := &slog.LevelVar{}
 	level.Set(slog.LevelDebug)
@@ -102,5 +121,15 @@ func TestReplaceAttr(t *testing.T) {
 	replaced := replaceAttr([]string{}, attr)
 	if replaced.Key != "err" && replaced.Key != "error" {
 		t.Errorf("replaceAttr did not replace error attr as expected: %+v", replaced)
+	}
+}
+
+func TestReplaceAttr_NonErrorAny(t *testing.T) {
+	// KindAny value that is not an error should be returned unchanged.
+	attr := slog.Any("key", struct{ Name string }{"value"})
+
+	replaced := replaceAttr([]string{}, attr)
+	if replaced.Key != "key" {
+		t.Errorf("expected key %q, got %q", "key", replaced.Key)
 	}
 }

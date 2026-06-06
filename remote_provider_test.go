@@ -2,10 +2,13 @@ package traefik_real_ip
 
 import (
 	"context"
+	"errors"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -210,5 +213,98 @@ func runHTTPErrorTests(
 				t.Errorf("Expected error for status code %d but got none", errCase.statusCode)
 			}
 		})
+	}
+}
+
+func TestBuildRequest_InvalidURL(t *testing.T) {
+	resolver := newTestResolver(t)
+
+	_, err := resolver.buildRequest(t.Context(), "test", "http://\x00invalid")
+	if err == nil {
+		t.Fatal("expected error for invalid URL, got nil")
+	}
+}
+
+var errSimulatedRead = errors.New("simulated read error")
+
+type errReader struct{}
+
+func (errReader) Read(_ []byte) (int, error) {
+	return 0, errSimulatedRead
+}
+
+func (errReader) Close() error {
+	return nil
+}
+
+func TestReadResponseBody_ReadError(t *testing.T) {
+	resolver := newTestResolver(t)
+	resp := &http.Response{Body: io.NopCloser(errReader{})}
+
+	_, err := resolver.readResponseBody(t.Context(), resp, "test", "http://example.com")
+	if err == nil {
+		t.Fatal("expected error from bad body reader, got nil")
+	}
+}
+
+func TestDoRequestWithRetry_ContextCancelled(t *testing.T) {
+	// Server returns 500 to force a retry; the pre-canceled context fires on the delay.
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	resolver := newTestResolver(t)
+
+	// Build the request with a live context so client.Do can connect on attempt 0.
+	req, err := resolver.buildRequest(t.Context(), "test", server.URL)
+	if err != nil {
+		t.Fatalf("buildRequest: %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel() // pre-cancel so the retry delay fires immediately
+
+	resp, err := resolver.doRequestWithRetry(ctx, req, "test", server.URL)
+	if resp != nil {
+		closeErr := resp.Body.Close()
+		if closeErr != nil {
+			t.Logf("close body: %v", closeErr)
+		}
+	}
+
+	if err == nil {
+		t.Fatal("expected error from canceled context, got nil")
+	}
+}
+
+func TestGetProviderIPs_MultiURL_FirstFails(t *testing.T) {
+	// First URL returns 500 (error), second returns valid CIDRs.
+	failServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer failServer.Close()
+
+	successServer := httptest.NewServer(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("10.0.0.0/8\n192.168.0.0/16\n"))
+		}),
+	)
+	defer successServer.Close()
+
+	resolver := newTestResolver(t)
+
+	cache := make([]*net.IPNet, 0)
+	provider := remoteIPProvider{
+		once:  &sync.Once{},
+		cache: &cache,
+		name:  "test",
+		urls:  []string{failServer.URL, successServer.URL},
+	}
+
+	ips := resolver.getProviderIPs(t.Context(), provider)
+	if len(ips) != 2 {
+		t.Errorf("expected 2 IPs from second URL, got %d", len(ips))
 	}
 }

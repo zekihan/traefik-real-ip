@@ -1,6 +1,7 @@
 package traefik_real_ip_test
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -308,6 +309,28 @@ func TestIPResolver_ForwardedForHeaders(t *testing.T) {
 			},
 			expectedStatus: http.StatusOK,
 		},
+		{
+			desc:   "X-Forwarded-For with whitespace-only entries",
+			remote: "10.0.0.1",
+			reqHeaders: map[string]string{
+				traefikrealip.XForwardedFor: " , , 1.2.3.4",
+			},
+			expectedHeaders: map[string]string{
+				traefikrealip.XRealIP:       "1.2.3.4",
+				traefikrealip.XIsTrusted:    "yes",
+				traefikrealip.XForwardedFor: "1.2.3.4",
+			},
+			expectedStatus: http.StatusOK,
+		},
+		{
+			desc:   "X-Forwarded-For all private IPs",
+			remote: "10.0.0.1",
+			reqHeaders: map[string]string{
+				traefikrealip.XForwardedFor: "192.168.1.1, 10.0.0.2",
+			},
+			expectedHeaders: map[string]string{},
+			expectedStatus:  http.StatusBadRequest,
+		},
 	}
 
 	for _, test := range testCases {
@@ -481,6 +504,50 @@ func TestIPResolver_InvalidHeaders(t *testing.T) {
 			handler.ServeHTTP(recorder, req)
 			validateTestResult(t, test, recorder, req)
 		})
+	}
+}
+
+func TestNew_InvalidTrustedIPCIDR(t *testing.T) {
+	cfg := traefikrealip.CreateConfig()
+	cfg.ThrustLocal = false
+	cfg.ThrustCloudFlare = false
+	cfg.ThrustEdgeOne = false
+	cfg.TrustedIPs = []string{"not-a-cidr"}
+	ctx := t.Context()
+	next := http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {})
+
+	_, err := traefikrealip.New(ctx, next, cfg, "test")
+	if !errors.Is(err, traefikrealip.ErrInvalidTrustedIPRange) {
+		t.Fatalf("expected ErrInvalidTrustedIPRange, got %v", err)
+	}
+}
+
+func TestIPResolver_InvalidRemoteAddr(t *testing.T) {
+	cfg := traefikrealip.CreateConfig()
+	cfg.ThrustLocal = false
+	cfg.ThrustCloudFlare = false
+	cfg.ThrustEdgeOne = false
+	ctx := t.Context()
+	next := http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {})
+
+	handler, err := traefikrealip.New(ctx, next, cfg, "test")
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	recorder := httptest.NewRecorder()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://localhost", http.NoBody)
+	if err != nil {
+		t.Fatalf("NewRequest: %v", err)
+	}
+	// RemoteAddr without port causes getSrcIP to fail.
+	req.RemoteAddr = "1.2.3.4"
+
+	handler.ServeHTTP(recorder, req)
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", recorder.Code)
 	}
 }
 
