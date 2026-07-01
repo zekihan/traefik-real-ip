@@ -1,3 +1,5 @@
+# [DEPRECATION NOTICE] This interface stopped serving on 2026-07-31 and will be officially offline on 2026-08-31. Please migrate in time.
+# [下线公告] 本接口已于 2026-07-31 停止服务，2026-08-31 正式下线，请及时迁移。
 1.14.231.0/24
 1.194.174.0/24
 1.56.100.0/24
