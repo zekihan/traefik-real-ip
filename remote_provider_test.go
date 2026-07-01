@@ -67,6 +67,16 @@ func runRemoteProviderResponseTests(
 			expectError:    false,
 		},
 		{
+			name: "response with comments",
+			responseBody: `# [DEPRECATION NOTICE] This interface stopped serving on 2026-07-31.
+173.245.48.0/20
+# Please migrate in time.
+103.21.244.0/22`,
+			statusCode:     http.StatusOK,
+			expectedIPsLen: 2,
+			expectError:    false,
+		},
+		{
 			name:           "HTTP error response",
 			responseBody:   "Not Found",
 			statusCode:     http.StatusNotFound,

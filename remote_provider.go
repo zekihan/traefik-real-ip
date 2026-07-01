@@ -256,6 +256,10 @@ func (resolver *IPResolver) parseCIDRs(
 			continue
 		}
 
+		if strings.HasPrefix(cidr, "#") {
+			continue
+		}
+
 		_, block, err := net.ParseCIDR(cidr)
 		if err != nil {
 			resolver.logger.ErrorContext(
