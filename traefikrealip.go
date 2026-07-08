@@ -88,15 +88,7 @@ func New(
 	if config.ThrustLocal {
 		errWg.Go(func() error {
 			ips := ipResolver.getLocalIPs(errCtx)
-			if len(ips) == 0 {
-				return ErrGettingLocalIPs
-			}
-
-			ipResolver.logger.DebugContext(
-				errCtx,
-				"Fetched local IPs",
-				slog.Int("count", len(ips)),
-			)
+			ipResolver.logTrustedIPFetchResult(errCtx, "local", len(ips))
 			results.Store("local", ips)
 
 			return nil
@@ -106,15 +98,7 @@ func New(
 	if config.ThrustCloudFlare {
 		errWg.Go(func() error {
 			ips := ipResolver.getCloudFlareIPs(errCtx)
-			if len(ips) == 0 {
-				return ErrGettingCloudflareIPs
-			}
-
-			ipResolver.logger.DebugContext(
-				errCtx,
-				"Fetched Cloudflare IPs",
-				slog.Int("count", len(ips)),
-			)
+			ipResolver.logTrustedIPFetchResult(errCtx, "Cloudflare", len(ips))
 			results.Store("cloudflare", ips)
 
 			return nil
@@ -124,15 +108,7 @@ func New(
 	if config.ThrustEdgeOne {
 		errWg.Go(func() error {
 			ips := ipResolver.getEdgeOneIPs(errCtx)
-			if len(ips) == 0 {
-				return ErrGettingEdgeOneIPs
-			}
-
-			ipResolver.logger.DebugContext(
-				errCtx,
-				"Fetched EdgeOne IPs",
-				slog.Int("count", len(ips)),
-			)
+			ipResolver.logTrustedIPFetchResult(errCtx, "EdgeOne", len(ips))
 			results.Store("edgeone", ips)
 
 			return nil
@@ -235,6 +211,29 @@ func (resolver *IPResolver) ServeHTTP(rw http.ResponseWriter, req *http.Request)
 	}
 
 	resolver.next.ServeHTTP(rw, req)
+}
+
+func (resolver *IPResolver) logTrustedIPFetchResult(
+	ctx context.Context,
+	provider string,
+	count int,
+) {
+	if count == 0 {
+		resolver.logger.WarnContext(
+			ctx,
+			"No trusted IPs loaded from provider",
+			slog.String("provider", provider),
+		)
+
+		return
+	}
+
+	resolver.logger.DebugContext(
+		ctx,
+		"Fetched trusted IPs",
+		slog.String("provider", provider),
+		slog.Int("count", count),
+	)
 }
 
 func (resolver *IPResolver) handleTrustedIPNets(ctx context.Context, req *http.Request, ip net.IP) {
