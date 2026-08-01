@@ -22,7 +22,6 @@ jobs:
         run: |
           mkdir -p remote_ips
 
-          ./scripts/fetch_with_retries.sh "https://api.edgeone.ai/ips" remote_ips/edgeone 10 true
           ./scripts/fetch_with_retries.sh "https://www.cloudflare.com/ips-v4" remote_ips/cloudflare_v4 6 false
           ./scripts/fetch_with_retries.sh "https://www.cloudflare.com/ips-v6" remote_ips/cloudflare_v6 6 false
 
