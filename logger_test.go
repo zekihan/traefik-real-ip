@@ -40,9 +40,11 @@ func TestPluginLogger_LogMethods(t *testing.T) {
 
 	var buf bytes.Buffer
 
-	handler := slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: level})
+	handler := slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: level, AddSource:
 
 	// Create PluginLogger with custom logger writing to buf
+	false, ReplaceAttr: nil})
+
 	logger := &PluginLogger{
 		logger:     slog.New(handler),
 		pluginName: "unit-test",

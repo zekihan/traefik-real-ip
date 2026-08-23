@@ -14,7 +14,7 @@ func TestIPResolver_getEdgeOneIPFromURL(t *testing.T) {
 
 func TestIPResolver_getEdgeOneIPs(t *testing.T) {
 	logger := NewPluginLogger(t.Context(), "test", LogLevelDebug)
-	resolver := &IPResolver{logger: logger}
+	resolver := &IPResolver{logger: logger, next: nil, conf: nil, name: "", trustedIPNets: nil}
 
 	ipv4Server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)

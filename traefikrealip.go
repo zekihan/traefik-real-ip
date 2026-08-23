@@ -65,7 +65,7 @@ func New(
 	ipResolver := &IPResolver{
 		next: next,
 		conf: config,
-		name: name,
+		name: name, logger: nil, trustedIPNets: nil,
 	}
 
 	pluginLogger := NewPluginLogger(ctx, name, config.LogLevel)

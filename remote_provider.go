@@ -112,7 +112,12 @@ func (resolver *IPResolver) doRequestWithRetry(
 	providerName string,
 	url string,
 ) (*http.Response, error) {
-	client := &http.Client{Timeout: defaultRemoteProviderTimeout}
+	client := &http.Client{
+		Timeout:       defaultRemoteProviderTimeout,
+		Transport:     nil,
+		CheckRedirect: nil,
+		Jar:           nil,
+	}
 
 	var (
 		lastErr  error

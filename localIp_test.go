@@ -5,7 +5,7 @@ import (
 )
 
 func TestGetLocalIPsHardcoded(t *testing.T) {
-	resolver := &IPResolver{}
+	resolver := &IPResolver{next: nil, conf: nil, logger: nil, name: "", trustedIPNets: nil}
 
 	ips, err := resolver.getLocalIPsHardcoded(t.Context())
 	if err != nil {
@@ -18,7 +18,7 @@ func TestGetLocalIPsHardcoded(t *testing.T) {
 }
 
 func TestGetLocalIPsSingleton(t *testing.T) {
-	resolver := &IPResolver{}
+	resolver := &IPResolver{next: nil, conf: nil, logger: nil, name: "", trustedIPNets: nil}
 	ips1 := resolver.getLocalIPs(t.Context())
 	ips2 := resolver.getLocalIPs(t.Context())
 

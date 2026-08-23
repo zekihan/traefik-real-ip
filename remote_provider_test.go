@@ -15,7 +15,13 @@ import (
 func newTestResolver(t *testing.T) *IPResolver {
 	t.Helper()
 
-	return &IPResolver{logger: NewPluginLogger(t.Context(), "test", LogLevelDebug)}
+	return &IPResolver{
+		logger:        NewPluginLogger(t.Context(), "test", LogLevelDebug),
+		next:          nil,
+		conf:          nil,
+		name:          "",
+		trustedIPNets: nil,
+	}
 }
 
 func runRemoteProviderResponseTests(
@@ -89,7 +95,7 @@ func runRemoteProviderResponseTests(
 invalid-cidr
 103.21.244.0/22`,
 			statusCode:  http.StatusOK,
-			expectError: true,
+			expectError: true, expectedIPsLen: 0,
 		},
 	}
 
@@ -249,7 +255,22 @@ func (errReader) Close() error {
 
 func TestReadResponseBody_ReadError(t *testing.T) {
 	resolver := newTestResolver(t)
-	resp := &http.Response{Body: io.NopCloser(errReader{})}
+	resp := &http.Response{
+		Body:             io.NopCloser(errReader{}),
+		Status:           "",
+		StatusCode:       0,
+		Proto:            "",
+		ProtoMajor:       0,
+		ProtoMinor:       0,
+		Header:           nil,
+		ContentLength:    0,
+		TransferEncoding: nil,
+		Close:            false,
+		Uncompressed:     false,
+		Trailer:          nil,
+		Request:          nil,
+		TLS:              nil,
+	}
 
 	_, err := resolver.readResponseBody(t.Context(), resp, "test", "http://example.com")
 	if err == nil {

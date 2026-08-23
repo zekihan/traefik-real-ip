@@ -8,7 +8,15 @@ import (
 
 func TestIPResolver_getRealIP(t *testing.T) {
 	ipResolver := &IPResolver{
-		logger: NewPluginLogger(t.Context(), "test", LogLevelDebug),
+		logger: NewPluginLogger(
+			t.Context(),
+			"test",
+			LogLevelDebug,
+		),
+		next:          nil,
+		conf:          nil,
+		name:          "",
+		trustedIPNets: nil,
 	}
 
 	trustedIPNets := make([]*net.IPNet, 0, len(ipResolver.trustedIPNets))
@@ -28,61 +36,61 @@ func TestIPResolver_getRealIP(t *testing.T) {
 			srcIP:        "103.21.244.23",
 			headers:      map[string]string{CfConnectingIP: "192.168.1.100"},
 			trustedCIDRs: []string{"1.1.1.0/24"},
-			expectedIP:   "192.168.1.100",
+			expectedIP:   "192.168.1.100", expectedError: false,
 		},
 		{
 			name:         "Cf-Connecting-Ip from untrusted source",
 			srcIP:        "2.2.2.2",
 			headers:      map[string]string{CfConnectingIP: "192.168.1.100"},
 			trustedCIDRs: []string{"1.1.1.0/24"},
-			expectedIP:   "2.2.2.2",
+			expectedIP:   "2.2.2.2", expectedError: false,
 		},
 		{
 			name:         "X-Real-IP from trusted source",
 			srcIP:        "103.21.244.23",
 			headers:      map[string]string{XRealIP: "203.0.113.10"},
 			trustedCIDRs: []string{"1.1.1.0/24"},
-			expectedIP:   "203.0.113.10",
+			expectedIP:   "203.0.113.10", expectedError: false,
 		},
 		{
 			name:         "X-Forwarded-For from trusted source",
 			srcIP:        "192.168.1.1",
 			headers:      map[string]string{XForwardedFor: "203.0.113.10, 192.168.1.1"},
 			trustedCIDRs: []string{"1.1.1.0/24"},
-			expectedIP:   "203.0.113.10",
+			expectedIP:   "203.0.113.10", expectedError: false,
 		},
 		{
 			name:         "No headers, return source IP",
 			srcIP:        "203.0.113.50",
 			headers:      map[string]string{},
 			trustedCIDRs: []string{},
-			expectedIP:   "203.0.113.50",
+			expectedIP:   "203.0.113.50", expectedError: false,
 		},
 		{
 			name:          "Invalid Cf-Connecting-Ip",
 			srcIP:         "192.168.1.1",
 			headers:       map[string]string{CfConnectingIP: "invalid-ip"},
 			trustedCIDRs:  []string{"1.1.1.0/24"},
-			expectedError: true,
+			expectedError: true, expectedIP: "",
 		},
 		{
 			name:       "Eo-Connecting-Ip from trusted source",
 			srcIP:      "10.0.0.1",
 			headers:    map[string]string{EoConnectingIP: "198.51.100.10"},
-			expectedIP: "198.51.100.10",
+			expectedIP: "198.51.100.10", trustedCIDRs: nil, expectedError: false,
 		},
 		{
 			name:         "Eo-Connecting-Ip from untrusted source",
 			srcIP:        "2.2.2.2",
 			headers:      map[string]string{EoConnectingIP: "198.51.100.10"},
 			trustedCIDRs: []string{"1.1.1.0/24"},
-			expectedIP:   "2.2.2.2",
+			expectedIP:   "2.2.2.2", expectedError: false,
 		},
 		{
 			name:          "Invalid Eo-Connecting-Ip",
 			srcIP:         "10.0.0.1",
 			headers:       map[string]string{EoConnectingIP: "invalid-ip"},
-			expectedError: true,
+			expectedError: true, expectedIP: "", trustedCIDRs: nil,
 		},
 	}
 
@@ -90,7 +98,7 @@ func TestIPResolver_getRealIP(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			resolver := &IPResolver{
 				logger:        NewPluginLogger(t.Context(), "test", LogLevelDebug),
-				trustedIPNets: trustedIPNets,
+				trustedIPNets: trustedIPNets, next: nil, conf: nil, name: "",
 			}
 
 			req, _ := http.NewRequestWithContext(t.Context(), http.MethodGet, "/", http.NoBody)
@@ -124,7 +132,15 @@ func TestIPResolver_getRealIP(t *testing.T) {
 
 func TestIPResolver_handleXForwardedFor(t *testing.T) {
 	resolver := &IPResolver{
-		logger: NewPluginLogger(t.Context(), "test", LogLevelDebug),
+		logger: NewPluginLogger(
+			t.Context(),
+			"test",
+			LogLevelDebug,
+		),
+		next:          nil,
+		conf:          nil,
+		name:          "",
+		trustedIPNets: nil,
 	}
 
 	tests := []struct {
@@ -136,32 +152,32 @@ func TestIPResolver_handleXForwardedFor(t *testing.T) {
 		{
 			name:        "Single public IP",
 			headerValue: "203.0.113.10",
-			expectedIP:  "203.0.113.10",
+			expectedIP:  "203.0.113.10", expectedError: false,
 		},
 		{
 			name:        "Multiple IPs, first public",
 			headerValue: "203.0.113.10, 192.168.1.1",
-			expectedIP:  "203.0.113.10",
+			expectedIP:  "203.0.113.10", expectedError: false,
 		},
 		{
 			name:        "Multiple IPs, second public",
 			headerValue: "192.168.1.1, 203.0.113.10",
-			expectedIP:  "203.0.113.10",
+			expectedIP:  "203.0.113.10", expectedError: false,
 		},
 		{
 			name:          "Only private IPs",
 			headerValue:   "192.168.1.1, 10.0.0.1",
-			expectedError: true,
+			expectedError: true, expectedIP: "",
 		},
 		{
 			name:          "Invalid IP format",
 			headerValue:   "invalid-ip",
-			expectedError: true,
+			expectedError: true, expectedIP: "",
 		},
 		{
 			name:        "IPs with spaces",
 			headerValue: " 203.0.113.10 , 192.168.1.1 ",
-			expectedIP:  "203.0.113.10",
+			expectedIP:  "203.0.113.10", expectedError: false,
 		},
 	}
 
@@ -195,7 +211,15 @@ func TestIPResolver_handleXForwardedFor(t *testing.T) {
 
 func TestIPResolver_handleXRealIP(t *testing.T) {
 	resolver := &IPResolver{
-		logger: NewPluginLogger(t.Context(), "test", LogLevelDebug),
+		logger: NewPluginLogger(
+			t.Context(),
+			"test",
+			LogLevelDebug,
+		),
+		next:          nil,
+		conf:          nil,
+		name:          "",
+		trustedIPNets: nil,
 	}
 
 	tests := []struct {
@@ -207,17 +231,17 @@ func TestIPResolver_handleXRealIP(t *testing.T) {
 		{
 			name:        "Valid IP",
 			headerValue: "203.0.113.10",
-			expectedIP:  "203.0.113.10",
+			expectedIP:  "203.0.113.10", expectedError: false,
 		},
 		{
 			name:          "Invalid IP format",
 			headerValue:   "invalid-ip",
-			expectedError: true,
+			expectedError: true, expectedIP: "",
 		},
 		{
 			name:        "IPv6 address",
 			headerValue: "2001:db8::1",
-			expectedIP:  "2001:db8::1",
+			expectedIP:  "2001:db8::1", expectedError: false,
 		},
 	}
 
@@ -263,7 +287,15 @@ func TestIPResolver_handleXRealIP(t *testing.T) {
 
 func TestIPResolver_handleCFIP(t *testing.T) {
 	resolver := &IPResolver{
-		logger: NewPluginLogger(t.Context(), "test", LogLevelDebug),
+		logger: NewPluginLogger(
+			t.Context(),
+			"test",
+			LogLevelDebug,
+		),
+		next:          nil,
+		conf:          nil,
+		name:          "",
+		trustedIPNets: nil,
 	}
 
 	tests := []struct {
@@ -275,17 +307,17 @@ func TestIPResolver_handleCFIP(t *testing.T) {
 		{
 			name:        "Valid IP",
 			headerValue: "203.0.113.10",
-			expectedIP:  "203.0.113.10",
+			expectedIP:  "203.0.113.10", expectedError: false,
 		},
 		{
 			name:          "Invalid IP format",
 			headerValue:   "invalid-ip",
-			expectedError: true,
+			expectedError: true, expectedIP: "",
 		},
 		{
 			name:        "IPv6 address",
 			headerValue: "2001:db8::1",
-			expectedIP:  "2001:db8::1",
+			expectedIP:  "2001:db8::1", expectedError: false,
 		},
 	}
 
@@ -331,7 +363,15 @@ func TestIPResolver_handleCFIP(t *testing.T) {
 
 func TestIPResolver_handleEOIP(t *testing.T) {
 	resolver := &IPResolver{
-		logger: NewPluginLogger(t.Context(), "test", LogLevelDebug),
+		logger: NewPluginLogger(
+			t.Context(),
+			"test",
+			LogLevelDebug,
+		),
+		next:          nil,
+		conf:          nil,
+		name:          "",
+		trustedIPNets: nil,
 	}
 
 	tests := []struct {
@@ -343,17 +383,17 @@ func TestIPResolver_handleEOIP(t *testing.T) {
 		{
 			name:        "Valid IP",
 			headerValue: "198.51.100.10",
-			expectedIP:  "198.51.100.10",
+			expectedIP:  "198.51.100.10", expectedError: false,
 		},
 		{
 			name:          "Invalid IP format",
 			headerValue:   "invalid-ip",
-			expectedError: true,
+			expectedError: true, expectedIP: "",
 		},
 		{
 			name:        "IPv6 address",
 			headerValue: "2001:db8::2",
-			expectedIP:  "2001:db8::2",
+			expectedIP:  "2001:db8::2", expectedError: false,
 		},
 	}
 
@@ -399,7 +439,15 @@ func TestIPResolver_handleEOIP(t *testing.T) {
 
 func TestIPResolver_getSrcIP(t *testing.T) {
 	resolver := &IPResolver{
-		logger: NewPluginLogger(t.Context(), "test", LogLevelDebug),
+		logger: NewPluginLogger(
+			t.Context(),
+			"test",
+			LogLevelDebug,
+		),
+		next:          nil,
+		conf:          nil,
+		name:          "",
+		trustedIPNets: nil,
 	}
 
 	tests := []struct {
@@ -411,22 +459,22 @@ func TestIPResolver_getSrcIP(t *testing.T) {
 		{
 			name:       "Valid IPv4 with port",
 			remoteAddr: "203.0.113.10:12345",
-			expectedIP: "203.0.113.10",
+			expectedIP: "203.0.113.10", expectedError: false,
 		},
 		{
 			name:       "Valid IPv6 with port",
 			remoteAddr: "[2001:db8::1]:12345",
-			expectedIP: "2001:db8::1",
+			expectedIP: "2001:db8::1", expectedError: false,
 		},
 		{
 			name:          "Invalid format - no port",
 			remoteAddr:    "203.0.113.10",
-			expectedError: true,
+			expectedError: true, expectedIP: "",
 		},
 		{
 			name:          "Invalid IP format",
 			remoteAddr:    "invalid-ip:12345",
-			expectedError: true,
+			expectedError: true, expectedIP: "",
 		},
 	}
 

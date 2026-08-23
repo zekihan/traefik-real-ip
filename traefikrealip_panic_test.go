@@ -60,8 +60,15 @@ func newPanicResolver(t *testing.T, next http.Handler) *IPResolver {
 	t.Helper()
 
 	return &IPResolver{
-		logger:        NewPluginLogger(t.Context(), "test", LogLevelDebug),
-		conf:          &Config{DenyUntrusted: false},
+		logger: NewPluginLogger(t.Context(), "test", LogLevelDebug),
+		conf: &Config{
+			DenyUntrusted:    false,
+			LogLevel:         "",
+			TrustedIPs:       nil,
+			ThrustLocal:      false,
+			ThrustCloudFlare: false,
+			ThrustEdgeOne:    false,
+		},
 		name:          "test",
 		trustedIPNets: nil,
 		next:          next,

@@ -14,7 +14,7 @@ func TestIPResolver_isTrustedIP(t *testing.T) {
 
 	resolver := &IPResolver{
 		trustedIPNets: []*net.IPNet{trustedNet1, trustedNet2, trustedNet3},
-		logger:        logger,
+		logger:        logger, next: nil, conf: nil, name: "",
 	}
 
 	tests := []struct {
@@ -70,7 +70,7 @@ func TestIPResolver_isTrustedIP(t *testing.T) {
 }
 
 func TestIPResolver_isPrivateIP(t *testing.T) {
-	resolver := &IPResolver{}
+	resolver := &IPResolver{next: nil, conf: nil, logger: nil, name: "", trustedIPNets: nil}
 
 	tests := []struct {
 		name     string
@@ -148,7 +148,7 @@ func TestIPResolver_isTrustedIP_EmptyTrustedNets(t *testing.T) {
 	logger := NewPluginLogger(t.Context(), "test", LogLevelDebug)
 	resolver := &IPResolver{
 		trustedIPNets: []*net.IPNet{},
-		logger:        logger,
+		logger:        logger, next: nil, conf: nil, name: "",
 	}
 
 	ip := net.ParseIP("192.168.1.1")
