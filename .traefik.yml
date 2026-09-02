@@ -11,3 +11,4 @@ testData:
   trustedIPs:
     - "127.0.0.1/32"
   logLevel: info
+  xForwardedForMode: append

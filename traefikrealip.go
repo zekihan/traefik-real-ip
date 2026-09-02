@@ -16,33 +16,41 @@ import (
 
 // Static errors.
 var (
-	ErrGettingLocalIPs       = errors.New("error getting local IPs")
-	ErrGettingCloudflareIPs  = errors.New("error getting Cloudflare IPs")
-	ErrGettingEdgeOneIPs     = errors.New("error getting EdgeOne IPs")
-	ErrInvalidTrustedIPRange = errors.New("invalid trusted IP range")
-	ErrPanic                 = errors.New("panic")
-	ErrUntrustedIP           = errors.New("request from untrusted IP denied")
+	ErrGettingLocalIPs          = errors.New("error getting local IPs")
+	ErrGettingCloudflareIPs     = errors.New("error getting Cloudflare IPs")
+	ErrGettingEdgeOneIPs        = errors.New("error getting EdgeOne IPs")
+	ErrInvalidTrustedIPRange    = errors.New("invalid trusted IP range")
+	ErrInvalidXForwardedForMode = errors.New("invalid X-Forwarded-For mode")
+	ErrPanic                    = errors.New("panic")
+	ErrUntrustedIP              = errors.New("request from untrusted IP denied")
+)
+
+const (
+	XForwardedForModeAppend  = "append"
+	XForwardedForModeReplace = "replace"
 )
 
 // Config the plugin configuration.
 type Config struct {
-	LogLevel         string   `json:"logLevel,omitempty"`
-	TrustedIPs       []string `json:"trustedIPs,omitempty"`
-	ThrustLocal      bool     `json:"thrustLocal,omitempty"`
-	ThrustCloudFlare bool     `json:"thrustCloudFlare,omitempty"`
-	ThrustEdgeOne    bool     `json:"thrustEdgeOne,omitempty"`
-	DenyUntrusted    bool     `json:"denyUntrusted,omitempty"`
+	LogLevel          string   `json:"logLevel,omitempty"`
+	XForwardedForMode string   `json:"xForwardedForMode,omitempty"`
+	TrustedIPs        []string `json:"trustedIPs,omitempty"`
+	ThrustLocal       bool     `json:"thrustLocal,omitempty"`
+	ThrustCloudFlare  bool     `json:"thrustCloudFlare,omitempty"`
+	ThrustEdgeOne     bool     `json:"thrustEdgeOne,omitempty"`
+	DenyUntrusted     bool     `json:"denyUntrusted,omitempty"`
 }
 
 // CreateConfig creates the default plugin configuration.
 func CreateConfig() *Config {
 	return &Config{
-		ThrustLocal:      true,
-		ThrustCloudFlare: true,
-		ThrustEdgeOne:    false,
-		TrustedIPs:       make([]string, 0),
-		LogLevel:         "info",
-		DenyUntrusted:    false,
+		ThrustLocal:       true,
+		ThrustCloudFlare:  true,
+		ThrustEdgeOne:     false,
+		TrustedIPs:        make([]string, 0),
+		LogLevel:          "info",
+		DenyUntrusted:     false,
+		XForwardedForMode: XForwardedForModeAppend,
 	}
 }
 
@@ -62,6 +70,12 @@ func New(
 	config *Config,
 	name string,
 ) (http.Handler, error) {
+	if config.XForwardedForMode != "" &&
+		config.XForwardedForMode != XForwardedForModeAppend &&
+		config.XForwardedForMode != XForwardedForModeReplace {
+		return nil, fmt.Errorf("%w: %s", ErrInvalidXForwardedForMode, config.XForwardedForMode)
+	}
+
 	ipResolver := &IPResolver{
 		next: next,
 		conf: config,
@@ -237,6 +251,18 @@ func (resolver *IPResolver) logTrustedIPFetchResult(
 }
 
 func (resolver *IPResolver) handleTrustedIPNets(ctx context.Context, req *http.Request, ip net.IP) {
+	if resolver.conf.XForwardedForMode == XForwardedForModeReplace {
+		req.Header.Set(XForwardedFor, ip.String())
+		resolver.logger.DebugContext(
+			ctx,
+			"Replacing header",
+			slog.String("header", XForwardedFor),
+			slog.String("value", ip.String()),
+		)
+
+		return
+	}
+
 	if req.Header.Get(XForwardedFor) == "" {
 		req.Header.Set(XForwardedFor, ip.String())
 		resolver.logger.DebugContext(

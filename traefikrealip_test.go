@@ -26,7 +26,16 @@ func setupTest(
 ) (*httptest.ResponseRecorder, *http.Request, http.Handler) {
 	t.Helper()
 
-	cfg := traefikrealip.CreateConfig()
+	return setupTestWithConfig(t, test, traefikrealip.CreateConfig())
+}
+
+func setupTestWithConfig(
+	t *testing.T,
+	test *testCase,
+	cfg *traefikrealip.Config,
+) (*httptest.ResponseRecorder, *http.Request, http.Handler) {
+	t.Helper()
+
 	cfg.TrustedIPs = test.trustedIPs
 	cfg.DenyUntrusted = test.denyUntrusted
 
@@ -442,6 +451,31 @@ func TestIPResolver_MultipleHeaders(t *testing.T) {
 	}
 }
 
+func TestIPResolver_XForwardedForModeReplace(t *testing.T) {
+	test := &testCase{
+		desc:       "X-Forwarded-For is replaced with the resolved client IP",
+		remote:     "10.0.0.1",
+		trustedIPs: nil,
+		reqHeaders: map[string]string{
+			traefikrealip.CfConnectingIP: "1.2.3.4",
+			traefikrealip.XForwardedFor:  "5.6.7.8, 10.0.0.2",
+		},
+		expectedHeaders: map[string]string{
+			traefikrealip.XRealIP:       "1.2.3.4",
+			traefikrealip.XForwardedFor: "1.2.3.4",
+			traefikrealip.XIsTrusted:    "yes",
+		},
+		expectedStatus: http.StatusOK,
+		denyUntrusted:  false,
+	}
+
+	cfg := traefikrealip.CreateConfig()
+	cfg.XForwardedForMode = traefikrealip.XForwardedForModeReplace
+	recorder, req, handler := setupTestWithConfig(t, test, cfg)
+	handler.ServeHTTP(recorder, req)
+	validateTestResult(t, test, recorder, req)
+}
+
 func TestIPResolver_InvalidHeaders(t *testing.T) {
 	testCases := []*testCase{
 		{
@@ -519,6 +553,21 @@ func TestNew_InvalidTrustedIPCIDR(t *testing.T) {
 	_, err := traefikrealip.New(ctx, next, cfg, "test")
 	if !errors.Is(err, traefikrealip.ErrInvalidTrustedIPRange) {
 		t.Fatalf("expected ErrInvalidTrustedIPRange, got %v", err)
+	}
+}
+
+func TestNew_InvalidXForwardedForMode(t *testing.T) {
+	cfg := traefikrealip.CreateConfig()
+	cfg.ThrustLocal = false
+	cfg.ThrustCloudFlare = false
+	cfg.ThrustEdgeOne = false
+	cfg.XForwardedForMode = "invalid"
+	ctx := t.Context()
+	next := http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {})
+
+	_, err := traefikrealip.New(ctx, next, cfg, "test")
+	if !errors.Is(err, traefikrealip.ErrInvalidXForwardedForMode) {
+		t.Fatalf("expected ErrInvalidXForwardedForMode, got %v", err)
 	}
 }
 
