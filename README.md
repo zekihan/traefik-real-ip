@@ -3,7 +3,7 @@
 A Traefik middleware plugin that extracts the real client IP address from various HTTP headers.
 
 [![Traefik Plugin](https://img.shields.io/badge/Traefik%20Plugin-Traefik%20Real%20IP-blue)](https://plugins.traefik.io/plugins/67eb72e756c7ea30f22dd6be/traefik-real-ip)
-[![Version](https://img.shields.io/badge/version-0.1.23-green)](https://github.com/zekihan/traefik-real-ip/releases/tag/v0.1.23)
+[![Version](https://img.shields.io/badge/version-0.1.24-green)](https://github.com/zekihan/traefik-real-ip/releases/tag/v0.1.24)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/zekihan/traefik-real-ip/blob/main/LICENSE)
 
 ## Overview
@@ -38,7 +38,7 @@ experimental:
   plugins:
     traefik-real-ip:
       moduleName: github.com/zekihan/traefik-real-ip
-      version: v0.1.23
+      version: v0.1.24
 ```
 
 ## Configuration
@@ -51,7 +51,7 @@ experimental:
   plugins:
     traefik-real-ip:
       moduleName: github.com/zekihan/traefik-real-ip
-      version: v0.1.23
+      version: v0.1.24
 ```
 
 ### Middleware Configuration
