@@ -11,12 +11,13 @@ import (
 )
 
 var (
-	ErrXForwardedForInvalid     = errors.New("header X-Forwarded-For invalid")
-	ErrNoValidIPInXForwardedFor = errors.New("no valid IP found in X-Forwarded-For")
-	ErrInvalidIPFormat          = errors.New("invalid IP format")
-	ErrXRealIPInvalid           = errors.New("header X-Real-IP invalid")
-	ErrCfConnectingIPInvalid    = errors.New("header Cf-Connecting-Ip not found or invalid")
-	ErrEoConnectingIPInvalid    = errors.New("header Eo-Connecting-Ip not found or invalid")
+	ErrXForwardedForInvalid      = errors.New("header X-Forwarded-For invalid")
+	ErrNoValidIPInXForwardedFor  = errors.New("no valid IP found in X-Forwarded-For")
+	ErrNoPublicIPInXForwardedFor = errors.New("no public IP found in X-Forwarded-For")
+	ErrInvalidIPFormat           = errors.New("invalid IP format")
+	ErrXRealIPInvalid            = errors.New("header X-Real-IP invalid")
+	ErrCfConnectingIPInvalid     = errors.New("header Cf-Connecting-Ip not found or invalid")
+	ErrEoConnectingIPInvalid     = errors.New("header Eo-Connecting-Ip not found or invalid")
 )
 
 func (resolver *IPResolver) getRealIP(
@@ -108,6 +109,16 @@ func (resolver *IPResolver) getRealIP(
 	if len(xForwardedForHeader) > 0 {
 		xForwardedFor, err := resolver.handleXForwardedFor(ctx, req)
 		if err != nil {
+			if errors.Is(err, ErrNoPublicIPInXForwardedFor) {
+				resolver.logger.DebugContext(
+					ctx,
+					"X-Forwarded-For contains only private IPs, returning source IP",
+					slog.String("ip", srcIP.String()),
+				)
+
+				return srcIP, nil
+			}
+
 			return nil, err
 		}
 
@@ -166,6 +177,10 @@ func (resolver *IPResolver) handleXForwardedFor(
 			"X-Forwarded-For IP is a private IP, skipping",
 			slog.String("ip", xForwardedForValue.String()),
 		)
+	}
+
+	if len(xForwardedForValues) > 0 {
+		return nil, ErrNoPublicIPInXForwardedFor
 	}
 
 	return nil, ErrNoValidIPInXForwardedFor
