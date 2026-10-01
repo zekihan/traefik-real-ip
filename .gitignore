@@ -38,3 +38,23 @@ fabric.properties
 go.work
 go.work.sum
 .env
+
+# Local and generated JetBrains IDE files
+.idea/**/caches/
+.idea/**/dataSources*.xml
+.idea/**/data_source_mapping.xml
+.idea/**/sqldialects.xml
+.idea/**/db-forest-config.xml
+.idea/**/git_toolbox_prj.xml
+.idea/**/goProfileHistory.xml
+.idea/**/go.imports.xml
+.idea/**/modules.xml
+.idea/**/misc.xml
+.idea/**/vcs.xml
+.idea/**/.name
+.idea/**/sonarlint.xml
+*.iml
+*.ipr
+.idea/**/.gitignore
+.idea/**/httpRequests/
+.idea/**/sonarlint/
