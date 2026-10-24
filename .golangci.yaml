@@ -91,7 +91,7 @@ linters:
     exhaustive:
       check:
         - switch
-        - map
+        - mapliteral
       default-case-required: true
     forbidigo:
       forbid:
