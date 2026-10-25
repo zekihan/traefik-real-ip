@@ -3,12 +3,6 @@ package traefik_real_ip
 import (
 	"context"
 	"net"
-	"sync"
-)
-
-var (
-	cloudFlareIPsInstance []*net.IPNet
-	cloudFlareIPsOnce     sync.Once
 )
 
 const (
@@ -19,11 +13,10 @@ const (
 var cloudflareProvider = remoteIPProvider{
 	name:  "Cloudflare",
 	urls:  []string{cloudflareIPv4URL, cloudflareIPv6URL},
-	once:  &cloudFlareIPsOnce,
-	cache: &cloudFlareIPsInstance,
+	cache: new(remoteIPCache),
 }
 
-func (resolver *IPResolver) getCloudFlareIPs(ctx context.Context) []*net.IPNet {
+func (resolver *IPResolver) getCloudFlareIPs(ctx context.Context) ([]*net.IPNet, error) {
 	return resolver.getProviderIPs(ctx, cloudflareProvider)
 }
 

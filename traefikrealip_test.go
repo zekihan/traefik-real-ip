@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 
@@ -36,7 +37,23 @@ func setupTestWithConfig(
 ) (*httptest.ResponseRecorder, *http.Request, http.Handler) {
 	t.Helper()
 
-	cfg.TrustedIPs = test.trustedIPs
+	// Header handling tests use fixed provider data; provider fetching is tested separately.
+	cfg.ThrustCloudFlare = false
+
+	cfg.TrustedIPs = append([]string{}, test.trustedIPs...)
+
+	for _, path := range []string{"remote_ips/cloudflare_v4", "remote_ips/cloudflare_v6"} {
+		body, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		cfg.TrustedIPs = append(
+			cfg.TrustedIPs,
+			strings.Split(strings.TrimSpace(string(body)), "\n")...,
+		)
+	}
+
 	cfg.DenyUntrusted = test.denyUntrusted
 
 	ctx := t.Context()

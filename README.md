@@ -86,6 +86,16 @@ http:
 | `denyUntrusted`     | boolean          | `false`  | Deny requests from untrusted IPs with 403 Forbidden                                                         |
 | `xForwardedForMode` | string           | `append` | How to write `X-Forwarded-For`: `append` preserves proxy hops; `replace` writes only the resolved client IP |
 
+Remote providers must return valid, nonempty CIDR lists from every required URL before the plugin can initialize.
+If an enabled provider fails, `New` returns an error, even when local or custom trusted ranges are configured.
+Failed loads do not populate the process cache: a later middleware initialization can retry without a process restart.
+Successful lists are cached for the process lifetime; there is no periodic refresh or persisted fallback.
+
+Each remote response is limited to 1 MiB after HTTP decompression, lines shorter than 4 KiB, and 4,096 CIDR entries
+(counting duplicates). Canonical duplicate ranges are removed within and across provider URLs, and a provider snapshot
+can contain at most 4,096 unique ranges. Empty, malformed, oversized, or default-route (`0.0.0.0/0`, `::/0`) lists are
+rejected in full. These validation limits apply to remote providers; custom `trustedIPs` retain their existing behavior.
+
 ## How It Works
 
 1. The plugin extracts the source IP from the incoming request

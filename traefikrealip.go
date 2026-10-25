@@ -111,7 +111,11 @@ func New(
 
 	if config.ThrustCloudFlare {
 		errWg.Go(func() error {
-			ips := ipResolver.getCloudFlareIPs(errCtx)
+			ips, err := ipResolver.getCloudFlareIPs(errCtx)
+			if err != nil {
+				return fmt.Errorf("%w: %w", ErrGettingCloudflareIPs, err)
+			}
+
 			ipResolver.logTrustedIPFetchResult(errCtx, "Cloudflare", len(ips))
 			results.Store("cloudflare", ips)
 
@@ -121,7 +125,11 @@ func New(
 
 	if config.ThrustEdgeOne {
 		errWg.Go(func() error {
-			ips := ipResolver.getEdgeOneIPs(errCtx)
+			ips, err := ipResolver.getEdgeOneIPs(errCtx)
+			if err != nil {
+				return fmt.Errorf("%w: %w", ErrGettingEdgeOneIPs, err)
+			}
+
 			ipResolver.logTrustedIPFetchResult(errCtx, "EdgeOne", len(ips))
 			results.Store("edgeone", ips)
 
