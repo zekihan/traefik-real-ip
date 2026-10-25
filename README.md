@@ -84,6 +84,7 @@ http:
 | `trustedIPs`        | array of strings | `[]`     | Additional IP ranges to trust in CIDR notation                                                              |
 | `logLevel`          | string           | `info`   | Log level (debug, info, warn, error)                                                                        |
 | `denyUntrusted`     | boolean          | `false`  | Deny requests from untrusted IPs with 403 Forbidden                                                         |
+| `panicPolicy`       | string           | `legacy-retry` | Panic handling: `legacy-retry` preserves retries; `propagate` prevents middleware replay (see below) |
 | `xForwardedForMode` | string           | `append` | How to write `X-Forwarded-For`: `append` preserves proxy hops; `replace` writes only the resolved client IP |
 
 Remote providers must return valid, nonempty CIDR lists from every required URL before the plugin can initialize.
@@ -105,6 +106,33 @@ rejected in full. These validation limits apply to remote providers; custom `tru
    `X-Forwarded-For`.
 5. It updates the request headers with the discovered real IP
 6. Adds an `X-Is-Trusted: yes|no` header indicating if the source was trusted
+
+## Panic Handling
+
+Set `panicPolicy: propagate` to prevent this middleware from invoking downstream again after a panic:
+
+```yaml
+http:
+  middlewares:
+    traefik-real-ip:
+      plugin:
+        traefik-real-ip:
+          panicPolicy: propagate
+```
+
+This policy rethrows the original panic to the enclosing HTTP server or recovery middleware. It does not
+rewind request bodies, retry canceled requests, append a replacement response, or manufacture a success response.
+`http.ErrAbortHandler` remains an abort signal. Already committed downstream actions and response bytes cannot
+be undone. An outer recovery middleware can still choose a different response or retry policy.
+
+The default, `legacy-retry` (also selected by an omitted or empty value), preserves the existing behavior,
+including possible duplicate downstream actions and retries with consumed bodies. Unknown values fail initialization.
+**The default still permits downstream replay; OPS-16 is not fully resolved by adding this opt-in.** Preserving
+compatibility avoids silently removing existing abort retries, at the cost of retaining that risk until a policy is agreed.
+Changing the default or removing deliberate abort retries requires maintainer agreement under
+[OPS-16](https://noqer.atlassian.net/browse/OPS-16). This opt-in does not establish that agreement or change a live configuration.
+See [synthetic replay results and the operator migration checklist](docs/panic-replay.md) for response semantics,
+the proposed policy, and remaining acceptance work.
 
 ## Protecting Against Direct Access
 
