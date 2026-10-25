@@ -169,6 +169,52 @@ Malformed identity headers return a fixed response without echoing their values.
 diagnostics are emitted only at debug level, contain header lengths rather than raw values,
 and do not include stack traces. Single-address identity headers are limited to 45 bytes.
 
+### Migrating private-client deployments
+
+A trusted address means **authorized to assert another host's identity**, not simply permitted
+to connect. The plugin cannot distinguish a private client from a private proxy by address
+syntax. `thrustLocal: true` includes RFC1918, loopback, IPv6 unique-local and link-local
+ranges. If these ranges also contain clients, their addresses are treated as proxies when
+walking XFF. This can produce a new HTTP 400 for a legitimate all-private chain; an overly
+broad trust list can also let a client-supplied public prefix appear authoritative. Allowlisting
+clients as proxies is therefore not a compatibility fix.
+
+An existing middleware configuration illustrates the migration review:
+
+```yaml
+thrustLocal: true
+thrustCloudFlare: true
+trustedIPs: []
+xForwardedForMode: append
+```
+
+This configuration trusts private clients as well as private proxies. Cloudflare trust does
+not disambiguate an all-private XFF chain, and outgoing `append` does not change resolution.
+The synthetic broad-trust tests cover this combination using offline provider fixtures. Review
+its actual proxy/client boundaries before upgrading; there is no universal replacement CIDR
+list. The example is documented for operator review, not applied or changed by this PR.
+
+For a synthetic example, a proxy peer `10.0.0.1` with XFF `10.20.0.10, 10.0.0.2` returns
+HTTP 400 with broad local trust: both the client and intermediary are classified as trusted.
+With local trust disabled and **only** `10.0.0.1/32` and `10.0.0.2/32` explicitly trusted,
+the same chain resolves to the private client `10.20.0.10`. It still resolves to that client
+if an attacker prepends `203.0.113.66`. The equivalent IPv6 example uses proxy addresses
+`fd00::1/128`, `fd00::2/128` and client `fd20::10`. These are test examples, not suggested
+deployment ranges.
+
+Before upgrading, inventory which hops actually sanitize/append identity headers and which
+address ranges contain clients. In an isolated acceptance environment, operators can evaluate
+`thrustLocal: false` with `trustedIPs` limited to their verified proxy hosts or dedicated proxy
+subnets. Keep clients outside those ranges; also review enabled provider trust lists. This
+changes trust for all supported identity headers and can affect `denyUntrusted`, so verify
+both direct-client and proxied traffic before applying a deployment-specific policy.
+
+Even with precise proxy ranges, an XFF chain containing only those proxies returns HTTP 400:
+there is still no client boundary to identify. The plugin does not guess the leftmost hop or
+fall back to the peer for this ambiguous chain. `xForwardedForMode: replace` only changes the
+outgoing header and does not bypass this check. No defaults or live settings are changed by
+this update.
+
 ## Protecting Against Direct Access
 
 If your server has a public IP but uses a WAF/CDN like Cloudflare, you may want to ensure that traffic can only reach
