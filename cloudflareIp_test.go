@@ -3,7 +3,6 @@ package traefik_real_ip
 import (
 	"net/http"
 	"net/http/httptest"
-	"sync"
 	"testing"
 )
 
@@ -40,32 +39,26 @@ func TestIPResolver_getCloudFlareIPs(t *testing.T) {
 	defer ipv6Server.Close()
 
 	originalProvider := cloudflareProvider
-	originalInstance := cloudFlareIPsInstance
-	// Use a local once so we don't mutate the package-level sync.Once
-	var localOnce sync.Once
-
-	cloudFlareIPsInstance = nil
 	cloudflareProvider = remoteIPProvider{
 		name:  originalProvider.name,
 		urls:  []string{ipv4Server.URL, ipv6Server.URL},
-		once:  &localOnce,
-		cache: &cloudFlareIPsInstance,
+		cache: new(remoteIPCache),
 	}
 
 	defer func() {
 		cloudflareProvider = originalProvider
-		cloudFlareIPsInstance = originalInstance
 	}()
 
-	// This test would require modifying the actual URLs or dependency injection
-	// reset localOnce and cache for this subtest
-	localOnce = sync.Once{}
-
 	t.Run("singleton behavior", func(t *testing.T) {
-		cloudFlareIPsInstance = nil
+		ips1, err := resolver.getCloudFlareIPs(t.Context())
+		if err != nil {
+			t.Fatal(err)
+		}
 
-		ips1 := resolver.getCloudFlareIPs(t.Context())
-		ips2 := resolver.getCloudFlareIPs(t.Context())
+		ips2, err := resolver.getCloudFlareIPs(t.Context())
+		if err != nil {
+			t.Fatal(err)
+		}
 
 		if len(ips1) != len(ips2) {
 			t.Errorf("Singleton behavior failed: different lengths %d vs %d", len(ips1), len(ips2))

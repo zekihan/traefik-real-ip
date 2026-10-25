@@ -3,6 +3,8 @@ package traefik_real_ip
 import (
 	"net"
 	"net/http"
+	"os"
+	"strings"
 	"testing"
 )
 
@@ -21,7 +23,18 @@ func TestIPResolver_getRealIP(t *testing.T) {
 
 	trustedIPNets := make([]*net.IPNet, 0, len(ipResolver.trustedIPNets))
 	trustedIPNets = append(trustedIPNets, ipResolver.getLocalIPs(t.Context())...)
-	trustedIPNets = append(trustedIPNets, ipResolver.getCloudFlareIPs(t.Context())...)
+
+	body, err := os.ReadFile("remote_ips/cloudflare_v4")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ips, err := ipResolver.parseCIDRs(t.Context(), strings.NewReader(string(body)), "fixture")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	trustedIPNets = append(trustedIPNets, ips...)
 
 	tests := []struct {
 		headers       map[string]string

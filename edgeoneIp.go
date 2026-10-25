@@ -3,26 +3,19 @@ package traefik_real_ip
 import (
 	"context"
 	"net"
-	"sync"
 )
 
 const (
 	edgeOneIPURL = "https://raw.githubusercontent.com/zekihan/traefik-real-ip/refs/heads/main/remote_ips/edgeone"
 )
 
-var (
-	edgeOneIPsInstance []*net.IPNet
-	edgeOneIPsOnce     sync.Once
-)
-
 var edgeOneProvider = remoteIPProvider{
 	name:  "EdgeOne",
 	urls:  []string{edgeOneIPURL},
-	once:  &edgeOneIPsOnce,
-	cache: &edgeOneIPsInstance,
+	cache: new(remoteIPCache),
 }
 
-func (resolver *IPResolver) getEdgeOneIPs(ctx context.Context) []*net.IPNet {
+func (resolver *IPResolver) getEdgeOneIPs(ctx context.Context) ([]*net.IPNet, error) {
 	return resolver.getProviderIPs(ctx, edgeOneProvider)
 }
 

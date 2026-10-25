@@ -44,8 +44,8 @@ make docker
 4. Resolve real IP via `getRealIP` (in `ip_resolver.go`): checks headers in order `Cf-Connecting-Ip` → `Eo-Connecting-Ip` → `X-Real-IP` → `X-Forwarded-For`; only checks headers if source is trusted
 5. Set `X-Real-IP`, `X-Forwarded-For`, and `X-Is-Trusted` headers on the request
 
-**IP provider pattern:** `cloudflareIp.go` and `edgeoneIp.go` each define a `remoteIPProvider` struct with a `sync.Once` and a cache pointer. Fetching is handled by `remote_provider.go` which does HTTP with retries. Local IPs are hardcoded RFC1918/loopback ranges in `localIp.go`.
+**IP provider pattern:** `cloudflareIp.go` and `edgeoneIp.go` each define a package-level `remoteIPProvider` with a pointer to a mutex-protected cache. Fetching is handled by `remote_provider.go` with HTTP retries and bounded streaming CIDR validation. Local IPs are hardcoded RFC1918/loopback ranges in `localIp.go`.
 
-**Key constraint:** The `sync.Once` instances for Cloudflare and EdgeOne are package-level globals, so IP ranges are fetched once per process lifetime and cached. Tests that need to reset this state use the `remote_ips/` directory for fixture data.
+**Key constraint:** Only complete, validated, nonempty provider snapshots are cached for the process lifetime. Failed loads remain retryable, and `New` returns an error if an enabled provider cannot initialize. Tests replace provider definitions with fresh caches and local HTTP fixtures, restoring globals afterward; header tests use checked-in `remote_ips/` data without live provider calls.
 
 **Logger:** `logger.go` wraps `log/slog` as `PluginLogger`, bridging Traefik's logging interface. Log level is configurable per-instance.

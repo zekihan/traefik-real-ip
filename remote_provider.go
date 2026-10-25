@@ -1,6 +1,7 @@
 package traefik_real_ip
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"fmt"
@@ -13,18 +14,32 @@ import (
 	"time"
 )
 
-var ErrRemoteIPProviderHTTPStatus = errors.New("failed to fetch remote IP provider ranges")
+var (
+	ErrRemoteIPProviderHTTPStatus = errors.New("failed to fetch remote IP provider ranges")
+	ErrRemoteIPProviderData       = errors.New("invalid remote IP provider data")
+)
 
 const (
 	defaultRemoteProviderTimeout = 2 * time.Second
 	maxRetries                   = 5
 	initialRetryDelay            = 2 * time.Second
+	// Limits apply to decoded responses, including automatically decompressed HTTP bodies.
+	maxRemoteProviderBytes     = 1 << 20
+	maxRemoteProviderLineBytes = 4096
+	maxRemoteProviderCIDRs     = 4096
 )
+
+// remoteIPCache publishes only complete, nonempty snapshots. Failed loads leave the
+// cache uninitialized so a later New call can retry without restarting the process.
+// Successful snapshots remain immutable and cached for the process lifetime.
+type remoteIPCache struct {
+	ips []*net.IPNet
+	mu  sync.Mutex
+}
 
 // remoteIPProvider describes a remote service exposing CIDR blocks.
 type remoteIPProvider struct {
-	once  *sync.Once
-	cache *[]*net.IPNet
+	cache *remoteIPCache
 	name  string
 	urls  []string
 }
@@ -32,33 +47,44 @@ type remoteIPProvider struct {
 func (resolver *IPResolver) getProviderIPs(
 	ctx context.Context,
 	provider remoteIPProvider,
-) []*net.IPNet {
-	provider.once.Do(func() {
-		results := make([]*net.IPNet, 0)
+) ([]*net.IPNet, error) {
+	provider.cache.mu.Lock()
+	defer provider.cache.mu.Unlock()
 
-		for _, url := range provider.urls {
-			ips, err := resolver.getProviderIPsFromURL(ctx, provider.name, url)
-			if err != nil {
-				// Log the error and continue with other URLs. Do not panic so tests
-				// and callers can handle missing remote data (e.g. via fallbacks).
-				resolver.logger.ErrorContext(
-					ctx,
-					"Error fetching provider IPs",
-					slog.String("provider", provider.name),
-					slog.String("url", url),
-					slog.Any("error", err),
-				)
+	if len(provider.cache.ips) > 0 {
+		return provider.cache.ips, nil
+	}
 
-				continue
-			}
+	results := make([]*net.IPNet, 0)
+	seen := make(map[string]bool)
 
-			results = append(results, ips...)
+	for _, url := range provider.urls {
+		ips, err := resolver.getProviderIPsFromURL(ctx, provider.name, url)
+		if err != nil {
+			return nil, fmt.Errorf("fetching %s ranges from %s: %w", provider.name, url, err)
 		}
 
-		*provider.cache = results
-	})
+		for _, block := range ips {
+			key := block.String()
+			if !seen[key] {
+				if len(results) == maxRemoteProviderCIDRs {
+					return nil, fmt.Errorf("%w: too many provider CIDRs", ErrRemoteIPProviderData)
+				}
 
-	return *provider.cache
+				seen[key] = true
+
+				results = append(results, block)
+			}
+		}
+	}
+
+	if len(results) == 0 {
+		return nil, fmt.Errorf("%w: empty provider", ErrRemoteIPProviderData)
+	}
+
+	provider.cache.ips = results
+
+	return provider.cache.ips, nil
 }
 
 func (resolver *IPResolver) getProviderIPsFromURL(
@@ -77,12 +103,7 @@ func (resolver *IPResolver) getProviderIPsFromURL(
 	}
 	defer resp.Body.Close()
 
-	body, err := resolver.readResponseBody(ctx, resp, providerName, url)
-	if err != nil {
-		return nil, err
-	}
-
-	return resolver.parseCIDRs(ctx, body, providerName)
+	return resolver.readResponseCIDRs(ctx, resp, providerName, url)
 }
 
 func (resolver *IPResolver) buildRequest(
@@ -224,45 +245,59 @@ func (resolver *IPResolver) doRequestWithRetry(
 	)
 }
 
-func (resolver *IPResolver) readResponseBody(
+func (resolver *IPResolver) readResponseCIDRs(
 	ctx context.Context,
 	resp *http.Response,
 	providerName, url string,
-) (string, error) {
-	bytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		resolver.logger.ErrorContext(
-			ctx,
-			"Error reading response body",
-			slog.String("provider", providerName),
-			slog.String("url", url),
-			slog.Any("error", err),
+) ([]*net.IPNet, error) {
+	if resp.ContentLength > maxRemoteProviderBytes {
+		return nil, fmt.Errorf(
+			"%w: response from %s exceeds byte limit",
+			ErrRemoteIPProviderData,
+			url,
 		)
-
-		return "", fmt.Errorf("error reading response body: %w", err)
 	}
 
-	return string(bytes), nil
+	// Read at most one byte past the limit to detect oversized chunked or decoded bodies.
+	body := &io.LimitedReader{R: resp.Body, N: maxRemoteProviderBytes + 1}
+
+	ips, err := resolver.parseCIDRs(ctx, body, providerName)
+	if err != nil {
+		return nil, err
+	}
+
+	if body.N == 0 {
+		return nil, fmt.Errorf(
+			"%w: response from %s exceeds byte limit",
+			ErrRemoteIPProviderData,
+			url,
+		)
+	}
+
+	return ips, nil
 }
 
 func (resolver *IPResolver) parseCIDRs(
 	ctx context.Context,
-	body string,
+	body io.Reader,
 	providerName string,
 ) ([]*net.IPNet, error) {
 	ips := make([]*net.IPNet, 0)
+	seen := make(map[string]bool)
+	count := 0
+	scanner := bufio.NewScanner(body)
+	scanner.Buffer(make([]byte, maxRemoteProviderLineBytes), maxRemoteProviderLineBytes)
 
-	//nolint:modernize // yaegi does not support strings.SplitSeq
-	lines := strings.Split(body, "\n")
-
-	for _, line := range lines {
-		cidr := strings.TrimSpace(line)
-		if cidr == "" {
+	for scanner.Scan() {
+		cidr := strings.TrimSpace(scanner.Text())
+		if cidr == "" || strings.HasPrefix(cidr, "#") {
 			continue
 		}
 
-		if strings.HasPrefix(cidr, "#") {
-			continue
+		// Count input entries before deduplication to bound duplicate-heavy responses too.
+		count++
+		if count > maxRemoteProviderCIDRs {
+			return nil, fmt.Errorf("%w: too many CIDRs", ErrRemoteIPProviderData)
 		}
 
 		_, block, err := net.ParseCIDR(cidr)
@@ -278,7 +313,27 @@ func (resolver *IPResolver) parseCIDRs(
 			return nil, fmt.Errorf("error parsing CIDR %s: %w", cidr, err)
 		}
 
-		ips = append(ips, block)
+		// A default route cannot identify a CDN and would authorize every source address.
+		ones, _ := block.Mask.Size()
+		if ones == 0 {
+			return nil, fmt.Errorf("%w: default route", ErrRemoteIPProviderData)
+		}
+
+		key := block.String()
+		if !seen[key] {
+			seen[key] = true
+
+			ips = append(ips, block)
+		}
+	}
+
+	err := scanner.Err()
+	if err != nil {
+		return nil, fmt.Errorf("reading %s CIDRs: %w", providerName, err)
+	}
+
+	if len(ips) == 0 {
+		return nil, fmt.Errorf("%w: empty response", ErrRemoteIPProviderData)
 	}
 
 	return ips, nil

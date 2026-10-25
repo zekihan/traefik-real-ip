@@ -1,120 +1,118 @@
 package traefik_real_ip
 
 import (
-	"net"
+	"errors"
 	"net/http"
 	"net/http/httptest"
-	"sync"
+	"sync/atomic"
 	"testing"
 )
 
-func TestNew_EmptyEdgeOneProviderDoesNotFail(t *testing.T) {
+func TestNew_EmptyEdgeOneProviderRecovers(t *testing.T) {
+	var ready atomic.Bool
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
+		if ready.Load() {
+			_, _ = w.Write([]byte("198.51.100.0/24\n"))
+		}
 	}))
 	defer server.Close()
 
 	originalProvider := edgeOneProvider
-	originalInstance := edgeOneIPsInstance
-
-	var localOnce sync.Once
-
-	edgeOneIPsInstance = nil
 	edgeOneProvider = remoteIPProvider{
-		name:  originalProvider.name,
-		urls:  []string{server.URL},
-		once:  &localOnce,
-		cache: &edgeOneIPsInstance,
+		name: originalProvider.name, urls: []string{server.URL}, cache: new(remoteIPCache),
 	}
 
-	defer func() {
-		edgeOneProvider = originalProvider
-		edgeOneIPsInstance = originalInstance
-	}()
+	t.Cleanup(func() { edgeOneProvider = originalProvider })
 
 	cfg := CreateConfig()
 	cfg.ThrustLocal = false
 	cfg.ThrustCloudFlare = false
 	cfg.ThrustEdgeOne = true
+	cfg.DenyUntrusted = true
 
-	next := http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {})
+	handler, err := New(t.Context(), http.NotFoundHandler(), cfg, "test")
+	if handler != nil || !errors.Is(err, ErrGettingEdgeOneIPs) {
+		t.Fatalf("expected failed initialization, got %T, %v", handler, err)
+	}
 
-	handler, err := New(t.Context(), next, cfg, "test")
+	if len(edgeOneProvider.cache.ips) != 0 {
+		t.Fatal("empty response was cached")
+	}
+
+	ready.Store(true)
+
+	handler, err = New(t.Context(), http.NotFoundHandler(), cfg, "test")
 	if err != nil {
-		t.Fatalf("New returned unexpected error: %v", err)
+		t.Fatal(err)
 	}
 
-	resolver, ok := handler.(*IPResolver)
-	if !ok {
-		t.Fatalf("expected *IPResolver, got %T", handler)
-	}
-
-	if len(resolver.trustedIPNets) != 0 {
-		t.Fatalf("expected no trusted IPs, got %d", len(resolver.trustedIPNets))
-	}
+	assertProviderRequest(t, handler, "198.51.100.1:1234", http.StatusNotFound)
+	assertProviderRequest(t, handler, "203.0.113.1:1234", http.StatusForbidden)
 }
 
-func TestNew_PartialCloudflareProviderDataDoesNotFail(t *testing.T) {
-	ipv4Server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
+func TestNew_PartialCloudflareProviderRecovers(t *testing.T) {
+	var ready atomic.Bool
 
-		_, err := w.Write([]byte("173.245.48.0/20"))
-		if err != nil {
-			t.Fatalf("Failed to write IPv4 response: %v", err)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v4" {
+			_, _ = w.Write([]byte("173.245.48.0/20\n"))
+
+			return
 		}
-	}))
-	defer ipv4Server.Close()
 
-	ipv6Server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusInternalServerError)
+		if !ready.Load() {
+			w.WriteHeader(http.StatusNotFound)
+
+			return
+		}
+
+		_, _ = w.Write([]byte("2400:cb00::/32\n"))
 	}))
-	defer ipv6Server.Close()
+	defer server.Close()
 
 	originalProvider := cloudflareProvider
-	originalInstance := cloudFlareIPsInstance
-
-	var localOnce sync.Once
-
-	cloudFlareIPsInstance = nil
 	cloudflareProvider = remoteIPProvider{
 		name:  originalProvider.name,
-		urls:  []string{ipv4Server.URL, ipv6Server.URL},
-		once:  &localOnce,
-		cache: &cloudFlareIPsInstance,
+		urls:  []string{server.URL + "/v4", server.URL + "/v6"},
+		cache: new(remoteIPCache),
 	}
 
-	defer func() {
-		cloudflareProvider = originalProvider
-		cloudFlareIPsInstance = originalInstance
-	}()
+	t.Cleanup(func() { cloudflareProvider = originalProvider })
 
 	cfg := CreateConfig()
 	cfg.ThrustLocal = false
 	cfg.ThrustCloudFlare = true
-	cfg.ThrustEdgeOne = false
+	cfg.DenyUntrusted = true
 
-	next := http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {})
+	handler, err := New(t.Context(), http.NotFoundHandler(), cfg, "test")
+	if handler != nil || !errors.Is(err, ErrGettingCloudflareIPs) {
+		t.Fatalf("expected failed initialization, got %T, %v", handler, err)
+	}
 
-	handler, err := New(t.Context(), next, cfg, "test")
+	if len(cloudflareProvider.cache.ips) != 0 {
+		t.Fatal("partial response was cached")
+	}
+
+	ready.Store(true)
+
+	handler, err = New(t.Context(), http.NotFoundHandler(), cfg, "test")
 	if err != nil {
-		t.Fatalf("New returned unexpected error: %v", err)
+		t.Fatal(err)
 	}
 
-	resolver, ok := handler.(*IPResolver)
-	if !ok {
-		t.Fatalf("expected *IPResolver, got %T", handler)
-	}
+	assertProviderRequest(t, handler, "173.245.48.1:1234", http.StatusNotFound)
+	assertProviderRequest(t, handler, "[2400:cb00::1]:1234", http.StatusNotFound)
+}
 
-	if len(resolver.trustedIPNets) != 1 {
-		t.Fatalf("expected one trusted IP, got %d", len(resolver.trustedIPNets))
-	}
+func assertProviderRequest(t *testing.T, handler http.Handler, source string, status int) {
+	t.Helper()
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", http.NoBody)
+	req.RemoteAddr = source
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, req)
 
-	_, expectedNet, err := net.ParseCIDR("173.245.48.0/20")
-	if err != nil {
-		t.Fatalf("ParseCIDR: %v", err)
-	}
-
-	if resolver.trustedIPNets[0].String() != expectedNet.String() {
-		t.Fatalf("expected trusted IP %s, got %s", expectedNet, resolver.trustedIPNets[0])
+	if recorder.Code != status {
+		t.Fatalf("source %s: expected %d, got %d", source, status, recorder.Code)
 	}
 }

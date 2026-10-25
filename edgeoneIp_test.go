@@ -3,7 +3,6 @@ package traefik_real_ip
 import (
 	"net/http"
 	"net/http/httptest"
-	"sync"
 	"testing"
 )
 
@@ -37,31 +36,27 @@ func TestIPResolver_getEdgeOneIPs(t *testing.T) {
 	defer ipv6Server.Close()
 
 	originalProvider := edgeOneProvider
-	originalInstance := edgeOneIPsInstance
 
-	// Use local once and cache variables to avoid package-level state issues.
-	var localOnce sync.Once
-
-	edgeOneIPsInstance = nil
 	edgeOneProvider = remoteIPProvider{
 		name:  originalProvider.name,
 		urls:  []string{ipv4Server.URL, ipv6Server.URL},
-		once:  &localOnce,
-		cache: &edgeOneIPsInstance,
+		cache: new(remoteIPCache),
 	}
 
 	defer func() {
 		edgeOneProvider = originalProvider
-		edgeOneIPsInstance = originalInstance
 	}()
 
 	t.Run("singleton behavior", func(t *testing.T) {
-		// Reset local once and cache for each subtest run.
-		localOnce = sync.Once{}
-		edgeOneIPsInstance = nil
+		ips1, err := resolver.getEdgeOneIPs(t.Context())
+		if err != nil {
+			t.Fatal(err)
+		}
 
-		ips1 := resolver.getEdgeOneIPs(t.Context())
-		ips2 := resolver.getEdgeOneIPs(t.Context())
+		ips2, err := resolver.getEdgeOneIPs(t.Context())
+		if err != nil {
+			t.Fatal(err)
+		}
 
 		if len(ips1) != len(ips2) {
 			t.Errorf("Singleton behavior failed: different lengths %d vs %d", len(ips1), len(ips2))
