@@ -21,6 +21,7 @@ var (
 	ErrGettingEdgeOneIPs        = errors.New("error getting EdgeOne IPs")
 	ErrInvalidTrustedIPRange    = errors.New("invalid trusted IP range")
 	ErrInvalidXForwardedForMode = errors.New("invalid X-Forwarded-For mode")
+	ErrInvalidPanicPolicy       = errors.New("invalid panic policy")
 	ErrPanic                    = errors.New("panic")
 	ErrUntrustedIP              = errors.New("request from untrusted IP denied")
 )
@@ -28,11 +29,15 @@ var (
 const (
 	XForwardedForModeAppend  = "append"
 	XForwardedForModeReplace = "replace"
+
+	PanicPolicyLegacyRetry = "legacy-retry"
+	PanicPolicyPropagate   = "propagate"
 )
 
 // Config the plugin configuration.
 type Config struct {
 	LogLevel          string   `json:"logLevel,omitempty"`
+	PanicPolicy       string   `json:"panicPolicy,omitempty"`
 	XForwardedForMode string   `json:"xForwardedForMode,omitempty"`
 	TrustedIPs        []string `json:"trustedIPs,omitempty"`
 	ThrustLocal       bool     `json:"thrustLocal,omitempty"`
@@ -49,6 +54,7 @@ func CreateConfig() *Config {
 		ThrustEdgeOne:     false,
 		TrustedIPs:        make([]string, 0),
 		LogLevel:          "info",
+		PanicPolicy:       PanicPolicyLegacyRetry,
 		DenyUntrusted:     false,
 		XForwardedForMode: XForwardedForModeAppend,
 	}
@@ -70,6 +76,12 @@ func New(
 	config *Config,
 	name string,
 ) (http.Handler, error) {
+	if config.PanicPolicy != "" &&
+		config.PanicPolicy != PanicPolicyLegacyRetry &&
+		config.PanicPolicy != PanicPolicyPropagate {
+		return nil, fmt.Errorf("%w: %s", ErrInvalidPanicPolicy, config.PanicPolicy)
+	}
+
 	if config.XForwardedForMode != "" &&
 		config.XForwardedForMode != XForwardedForModeAppend &&
 		config.XForwardedForMode != XForwardedForModeReplace {
@@ -311,6 +323,11 @@ func (resolver *IPResolver) handleTrustedIPNets(ctx context.Context, req *http.R
 
 func (resolver *IPResolver) handlePanic(rw http.ResponseWriter, req *http.Request) {
 	recovered := recover()
+	if recovered != nil && resolver.conf.PanicPolicy == PanicPolicyPropagate {
+		// Preserve the original panic for the enclosing HTTP server or recovery middleware.
+		// In particular, never replay a request whose downstream effects are unknown.
+		panic(recovered)
+	}
 
 	ctx := req.Context()
 

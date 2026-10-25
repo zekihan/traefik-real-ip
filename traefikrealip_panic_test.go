@@ -63,6 +63,7 @@ func newPanicResolver(t *testing.T, next http.Handler) *IPResolver {
 		logger: NewPluginLogger(t.Context(), "test", LogLevelDebug),
 		conf: &Config{
 			DenyUntrusted:     false,
+			PanicPolicy:       "",
 			LogLevel:          "",
 			TrustedIPs:        nil,
 			ThrustLocal:       false,
