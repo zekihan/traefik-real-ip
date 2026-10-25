@@ -134,6 +134,41 @@ Changing the default or removing deliberate abort retries requires maintainer ag
 See [synthetic replay results and the operator migration checklist](docs/panic-replay.md) for response semantics,
 the proposed policy, and remaining acceptance work.
 
+## Forwarded Identity Trust Boundary
+
+`X-Forwarded-For` resolution starts at the socket peer (`RemoteAddr`). Headers from an untrusted
+peer are ignored. For a trusted peer, the plugin validates the entire XFF field, then walks from
+right to left through the contiguous suffix of addresses in the configured trusted ranges. The
+first untrusted hop is the client boundary, even when that address is private. It never skips an
+untrusted hop to select a public address further left.
+
+For example, with only `192.0.2.0/24` trusted, a peer at `192.0.2.1` and XFF
+`198.51.100.66, 203.0.113.10, 192.0.2.2` resolve to `203.0.113.10`. The leftmost address
+cannot override that boundary. A trusted socket peer is sufficient when there are no additional
+trusted proxies in the header: `198.51.100.66, 203.0.113.10` still resolves to `203.0.113.10`.
+
+When XFF is selected, repeated header fields, empty or malformed entries, more than 32 hops,
+and values over 4,096 bytes return HTTP 400. A chain containing only trusted addresses also
+returns HTTP 400 because it does not identify an untrusted client boundary. This replaces the
+previous behavior that silently dropped malformed entries and selected the first public address.
+
+Trust only proxy ranges controlled by your deployment. Every trusted proxy must remove or
+sanitize client-supplied identity headers and accurately append its observed upstream peer to
+XFF (or replace the chain with a verified client address). The existing `thrustLocal` default
+trusts broad private ranges; operators must review whether those ranges contain untrusted
+clients. No trust configuration is changed automatically.
+
+Header priority remains `Cf-Connecting-Ip`, `Eo-Connecting-Ip`, `X-Real-IP`, then XFF; a valid
+higher-priority header bypasses XFF resolution. Trusted proxies must strip or overwrite those
+headers as well. `xForwardedForMode` only controls the outgoing header. `append` retains
+incoming entries, including an untrusted prefix; downstream consumers must not treat every
+retained entry as authoritative. Use `replace` when a downstream consumer requires a single
+resolved client address.
+
+Malformed identity headers return a fixed response without echoing their values. Validation
+diagnostics are emitted only at debug level, contain header lengths rather than raw values,
+and do not include stack traces. Single-address identity headers are limited to 45 bytes.
+
 ## Protecting Against Direct Access
 
 If your server has a public IP but uses a WAF/CDN like Cloudflare, you may want to ensure that traffic can only reach
@@ -167,8 +202,13 @@ docker-compose up -d
 ### Running Tests
 
 ```bash
-go test ./...
+make test
 ```
+
+Tests serve checked-in provider snapshots and use loopback HTTP fixtures; external service
+requests are blocked. Run `make lint` and `go build ./...` for the other local checks. Actual
+proxy append/sanitization behavior and Traefik/Yaegi integration still require an isolated
+acceptance environment before deployment.
 
 ## License
 

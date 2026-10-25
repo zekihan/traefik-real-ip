@@ -11,13 +11,20 @@ import (
 )
 
 var (
-	ErrXForwardedForInvalid      = errors.New("header X-Forwarded-For invalid")
-	ErrNoValidIPInXForwardedFor  = errors.New("no valid IP found in X-Forwarded-For")
-	ErrNoPublicIPInXForwardedFor = errors.New("no public IP found in X-Forwarded-For")
-	ErrInvalidIPFormat           = errors.New("invalid IP format")
-	ErrXRealIPInvalid            = errors.New("header X-Real-IP invalid")
-	ErrCfConnectingIPInvalid     = errors.New("header Cf-Connecting-Ip not found or invalid")
-	ErrEoConnectingIPInvalid     = errors.New("header Eo-Connecting-Ip not found or invalid")
+	ErrNoUntrustedIPInXForwardedFor = errors.New("no untrusted IP found in X-Forwarded-For")
+	ErrXForwardedForInvalid         = errors.New("header X-Forwarded-For invalid")
+	ErrNoValidIPInXForwardedFor     = errors.New("no valid IP found in X-Forwarded-For")
+	ErrNoPublicIPInXForwardedFor    = errors.New("no public IP found in X-Forwarded-For")
+	ErrInvalidIPFormat              = errors.New("invalid IP format")
+	ErrXRealIPInvalid               = errors.New("header X-Real-IP invalid")
+	ErrCfConnectingIPInvalid        = errors.New("header Cf-Connecting-Ip not found or invalid")
+	ErrEoConnectingIPInvalid        = errors.New("header Eo-Connecting-Ip not found or invalid")
+)
+
+const (
+	maxForwardedForHops  = 32
+	maxForwardedForBytes = 4096
+	maxSingleIPBytes     = 45
 )
 
 func (resolver *IPResolver) getRealIP(
@@ -30,10 +37,6 @@ func (resolver *IPResolver) getRealIP(
 			ctx,
 			"Source IP is not trusted, skipping header checks",
 			slog.String("ip", srcIP.String()),
-			slog.String(CfConnectingIP, req.Header.Get(CfConnectingIP)),
-			slog.String(EoConnectingIP, req.Header.Get(EoConnectingIP)),
-			slog.String(XRealIP, req.Header.Get(XRealIP)),
-			slog.String(XForwardedFor, req.Header.Get(XForwardedFor)),
 		)
 
 		return srcIP, nil
@@ -107,18 +110,8 @@ func (resolver *IPResolver) getRealIP(
 	)
 
 	if len(xForwardedForHeader) > 0 {
-		xForwardedFor, err := resolver.handleXForwardedFor(ctx, req)
+		xForwardedFor, err := resolver.handleXForwardedFor(ctx, srcIP, req)
 		if err != nil {
-			if errors.Is(err, ErrNoPublicIPInXForwardedFor) {
-				resolver.logger.DebugContext(
-					ctx,
-					"X-Forwarded-For contains only private IPs, returning source IP",
-					slog.String("ip", srcIP.String()),
-				)
-
-				return srcIP, nil
-			}
-
 			return nil, err
 		}
 
@@ -130,60 +123,47 @@ func (resolver *IPResolver) getRealIP(
 	return srcIP, nil
 }
 
+// handleXForwardedFor follows only the contiguous trusted suffix, anchored at the socket peer.
 func (resolver *IPResolver) handleXForwardedFor(
 	ctx context.Context,
+	srcIP net.IP,
 	req *http.Request,
 ) (net.IP, error) {
-	xForwardedForList := req.Header.Values(XForwardedFor)
-	if len(xForwardedForList) != 1 {
+	if !resolver.isTrustedIP(ctx, srcIP) {
+		return srcIP, nil
+	}
+
+	values := req.Header.Values(XForwardedFor)
+	if len(values) != 1 || len(values[0]) > maxForwardedForBytes {
 		return nil, ErrXForwardedForInvalid
 	}
 
-	resolver.logger.DebugContext(
-		ctx,
-		"Parsing X-Forwarded-For",
-		slog.Any("value", xForwardedForList),
-	)
+	if strings.Count(values[0], ",") >= maxForwardedForHops {
+		return nil, ErrXForwardedForInvalid
+	}
 
-	xForwardedForValuesStr := strings.Split(xForwardedForList[0], ",")
-	xForwardedForValues := make([]net.IP, 0)
+	hops := strings.Split(values[0], ",")
 
-	for _, xForwardedForValue := range xForwardedForValuesStr {
-		tempIP := net.ParseIP(strings.TrimSpace(xForwardedForValue))
-		if tempIP != nil {
-			xForwardedForValues = append(xForwardedForValues, tempIP)
-		} else {
-			resolver.logger.DebugContext(
-				ctx,
-				"Invalid IP format in X-Forwarded-For",
-				slog.String("value", xForwardedForValue),
-			)
+	ips := make([]net.IP, len(hops))
+	for i, hop := range hops {
+		ip := net.ParseIP(strings.TrimSpace(hop))
+		if ip == nil {
+			return nil, ErrXForwardedForInvalid
+		}
+
+		ips[i] = ip
+	}
+
+	// Validate the entire input before choosing an address, including any untrusted prefix.
+	//nolint:modernize // yaegi does not support generics or range-over-function iterators
+	for i := len(ips) - 1; i >= 0; i-- {
+		if !resolver.isTrustedIP(ctx, ips[i]) {
+			return ips[i], nil
 		}
 	}
 
-	for _, xForwardedForValue := range xForwardedForValues {
-		if !resolver.isPrivateIP(xForwardedForValue) {
-			resolver.logger.DebugContext(
-				ctx,
-				"Found valid X-Forwarded-For IP",
-				slog.String("ip", xForwardedForValue.String()),
-			)
-
-			return xForwardedForValue, nil
-		}
-
-		resolver.logger.DebugContext(
-			ctx,
-			"X-Forwarded-For IP is a private IP, skipping",
-			slog.String("ip", xForwardedForValue.String()),
-		)
-	}
-
-	if len(xForwardedForValues) > 0 {
-		return nil, ErrNoPublicIPInXForwardedFor
-	}
-
-	return nil, ErrNoValidIPInXForwardedFor
+	// Every hop is trusted: the chain does not identify an untrusted client boundary.
+	return nil, ErrNoUntrustedIPInXForwardedFor
 }
 
 func (resolver *IPResolver) handleXRealIP(ctx context.Context, req *http.Request) (net.IP, error) {
@@ -192,11 +172,15 @@ func (resolver *IPResolver) handleXRealIP(ctx context.Context, req *http.Request
 		return nil, ErrXRealIPInvalid
 	}
 
-	resolver.logger.DebugContext(ctx, "Parsing X-Real-IP", slog.Any("value", realIPs))
+	resolver.logger.DebugContext(ctx, "Parsing X-Real-IP", slog.Int("valueBytes", len(realIPs[0])))
+
+	if len(realIPs[0]) > maxSingleIPBytes {
+		return nil, fmt.Errorf("%w in X-Real-IP", ErrInvalidIPFormat)
+	}
 
 	tempIP := net.ParseIP(realIPs[0])
 	if tempIP == nil {
-		return nil, fmt.Errorf("%w in X-Real-IP: %s", ErrInvalidIPFormat, realIPs[0])
+		return nil, fmt.Errorf("%w in X-Real-IP", ErrInvalidIPFormat)
 	}
 
 	resolver.logger.DebugContext(ctx, "Found valid X-Real-IP", slog.String("ip", tempIP.String()))
@@ -210,11 +194,19 @@ func (resolver *IPResolver) handleCFIP(ctx context.Context, req *http.Request) (
 		return nil, ErrCfConnectingIPInvalid
 	}
 
-	resolver.logger.DebugContext(ctx, "Parsing Cf-Connecting-Ip", slog.Any("value", cfIPs))
+	resolver.logger.DebugContext(
+		ctx,
+		"Parsing Cf-Connecting-Ip",
+		slog.Int("valueBytes", len(cfIPs[0])),
+	)
+
+	if len(cfIPs[0]) > maxSingleIPBytes {
+		return nil, fmt.Errorf("%w in Cf-Connecting-Ip", ErrInvalidIPFormat)
+	}
 
 	tempIP := net.ParseIP(cfIPs[0])
 	if tempIP == nil {
-		return nil, fmt.Errorf("%w in Cf-Connecting-Ip: %s", ErrInvalidIPFormat, cfIPs[0])
+		return nil, fmt.Errorf("%w in Cf-Connecting-Ip", ErrInvalidIPFormat)
 	}
 
 	resolver.logger.DebugContext(
@@ -232,11 +224,19 @@ func (resolver *IPResolver) handleEOIP(ctx context.Context, req *http.Request) (
 		return nil, ErrEoConnectingIPInvalid
 	}
 
-	resolver.logger.DebugContext(ctx, "Parsing Eo-Connecting-Ip", slog.Any("value", eoIPs))
+	resolver.logger.DebugContext(
+		ctx,
+		"Parsing Eo-Connecting-Ip",
+		slog.Int("valueBytes", len(eoIPs[0])),
+	)
+
+	if len(eoIPs[0]) > maxSingleIPBytes {
+		return nil, fmt.Errorf("%w in Eo-Connecting-Ip", ErrInvalidIPFormat)
+	}
 
 	tempIP := net.ParseIP(eoIPs[0])
 	if tempIP == nil {
-		return nil, fmt.Errorf("%w in Eo-Connecting-Ip: %s", ErrInvalidIPFormat, eoIPs[0])
+		return nil, fmt.Errorf("%w in Eo-Connecting-Ip", ErrInvalidIPFormat)
 	}
 
 	resolver.logger.DebugContext(
