@@ -60,6 +60,10 @@ func CreateConfig() *Config {
 	}
 }
 
+func isValidPanicPolicy(policy string) bool {
+	return policy == "" || policy == PanicPolicyLegacyRetry || policy == PanicPolicyPropagate
+}
+
 // IPResolver plugin.
 type IPResolver struct {
 	next          http.Handler
@@ -76,9 +80,7 @@ func New(
 	config *Config,
 	name string,
 ) (http.Handler, error) {
-	if config.PanicPolicy != "" &&
-		config.PanicPolicy != PanicPolicyLegacyRetry &&
-		config.PanicPolicy != PanicPolicyPropagate {
+	if !isValidPanicPolicy(config.PanicPolicy) {
 		return nil, fmt.Errorf("%w: %s", ErrInvalidPanicPolicy, config.PanicPolicy)
 	}
 

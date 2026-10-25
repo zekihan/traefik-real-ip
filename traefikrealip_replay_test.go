@@ -85,6 +85,125 @@ func TestPanicPolicy_PropagateOriginalValue(t *testing.T) {
 	}
 }
 
+func TestPanicPolicy_ProviderInitializationRecovery(t *testing.T) {
+	for _, policy := range []string{"", PanicPolicyLegacyRetry, PanicPolicyPropagate} {
+		for _, panicValue := range []error{errTestPlainPanic, http.ErrAbortHandler} {
+			t.Run(policy+"/"+panicValue.Error(), func(t *testing.T) {
+				checkProviderRecoveryWithPanic(t, policy, panicValue)
+			})
+		}
+	}
+}
+
+func configureReplayProviders(t *testing.T) *atomic.Bool {
+	t.Helper()
+
+	ready := new(atomic.Bool)
+	server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		switch req.URL.Path {
+		case "/v4":
+			_, _ = rw.Write([]byte("192.0.2.0/24\n"))
+		case "/v6":
+			if !ready.Load() {
+				rw.WriteHeader(http.StatusNotFound)
+
+				return
+			}
+
+			_, _ = rw.Write([]byte("2001:db8::/32\n"))
+		default:
+			_, _ = rw.Write([]byte("198.51.100.0/24\n"))
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	originalCloudflare, originalEdgeOne := cloudflareProvider, edgeOneProvider
+	cloudflareProvider = remoteIPProvider{
+		cache: new(remoteIPCache), name: originalCloudflare.name,
+		urls: []string{server.URL + "/v4", server.URL + "/v6"},
+	}
+	edgeOneProvider = remoteIPProvider{
+		cache: new(remoteIPCache), name: originalEdgeOne.name, urls: []string{server.URL + "/edge"},
+	}
+
+	t.Cleanup(func() {
+		cloudflareProvider, edgeOneProvider = originalCloudflare, originalEdgeOne
+	})
+
+	return ready
+}
+
+func checkProviderRecoveryWithPanic(t *testing.T, policy string, panicValue error) {
+	t.Helper()
+
+	ready := configureReplayProviders(t)
+	cfg := new(Config)
+	cfg.PanicPolicy = policy
+	cfg.LogLevel = LogLevelError
+	cfg.ThrustCloudFlare = true
+	cfg.ThrustEdgeOne = true
+	cfg.DenyUntrusted = true
+
+	calls := 0
+	next := http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		calls++
+
+		if req.Header.Get(XRealIP) != "203.0.113.9" || req.Header.Get(XIsTrusted) != "yes" {
+			t.Error("recovered provider did not resolve the trusted synthetic client")
+		}
+
+		if calls == 1 {
+			panic(panicValue)
+		}
+
+		rw.WriteHeader(http.StatusNoContent)
+	})
+
+	handler, err := New(t.Context(), next, cfg, "test")
+	if handler != nil || !errors.Is(err, ErrGettingCloudflareIPs) || calls != 0 {
+		t.Fatalf("failed provider: handler=%T error=%v calls=%d", handler, err, calls)
+	}
+
+	ready.Store(true)
+
+	handler, err = New(t.Context(), next, cfg, "test")
+	if err != nil {
+		t.Fatalf("provider recovery: %v", err)
+	}
+
+	req := httptest.NewRequestWithContext(
+		t.Context(),
+		http.MethodPost,
+		"/",
+		strings.NewReader("payload"),
+	)
+	req.RemoteAddr = "192.0.2.1:1234"
+	req.Header.Set(CfConnectingIP, "203.0.113.9")
+
+	recorder := httptest.NewRecorder()
+
+	var recovered any
+
+	func() {
+		defer func() { recovered = recover() }()
+
+		handler.ServeHTTP(recorder, req)
+	}()
+
+	wantCalls, wantStatus := 2, http.StatusNoContent
+
+	var wantPanic any
+
+	if policy == PanicPolicyPropagate {
+		wantCalls, wantStatus, wantPanic = 1, http.StatusOK, panicValue
+	}
+
+	if calls != wantCalls || recovered != wantPanic || recorder.Code != wantStatus {
+		t.Errorf("after provider recovery: calls=%d panic=%v status=%d; want %d %v %d",
+			calls, recovered, recorder.Code, wantCalls, wantPanic, wantStatus)
+	}
+}
+
 type replayScenario struct {
 	panicValue  error
 	name        string

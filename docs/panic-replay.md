@@ -11,6 +11,24 @@ Maintainer agreement to change the deliberate retry compatibility has **not** be
 therefore exposes this behavior as `panicPolicy: propagate`, retaining `legacy-retry` as the default and treating
 an empty value as legacy compatibility. Invalid values fail initialization. The opt-in is testable without
 changing live configuration. A default switch, retry removal, or operator rollout remains a separate decision.
+**OPS-16 remains unresolved for default/legacy configurations:** installing this version alone does not prevent
+replay. Keeping legacy behavior avoids silently removing retries that an operator may depend on, but retains
+duplicate-action and consumed-body risks. Choosing propagation trades those retries for visible abort/error
+semantics; it cannot undo an action already committed downstream or prevent an outer layer from retrying.
+
+## Operator migration checklist (proposal; no rollout authorized)
+
+1. Obtain maintainer/operator agreement on the target policy and affected routes. Inventory outer recovery,
+   proxy/client retry behavior, and reliance on existing abort retries; do not infer safety from the HTTP method.
+2. In an approved disposable Traefik/Yaegi setup, explicitly set `panicPolicy: propagate`. Use synthetic POST
+   actions to verify one downstream invocation, ordinary/abort and interpreter-wrapped panics, consumed bodies,
+   cancellation, and partial responses over HTTP/1 and HTTP/2 with the intended recovery chain.
+3. Validate provider startup separately: an unavailable/invalid enabled provider must fail initialization;
+   after restoring only the fixture, a later initialization must recover with the intended trusted ranges.
+   Do not disable trust providers or relax `denyUntrusted` to make the migration pass.
+4. Before any separately approved rollout, record expected abort/error responses, an owner, monitoring of
+   downstream invocation counts and errors, and a rollback decision. Omitting the setting or selecting
+   `legacy-retry` restores replay behavior and its risks; rollback is not evidence that replay is safe.
 
 ## Synthetic observations
 
@@ -42,6 +60,11 @@ ordinary panics and `http.ErrAbortHandler`. It confirms exactly one downstream i
 These are local Go HTTP server observations, not a reproduction of production impact or a claim about every
 Traefik protocol/recovery configuration. The middleware preserves panic identity, including interpreter wrappers;
 any enclosing recovery layer owns its treatment of that value.
+
+`TestPanicPolicy_ProviderInitializationRecovery` combines both enabled providers with local fixtures. A partial
+Cloudflare load returns no middleware and makes no downstream call. Once the fixture becomes complete, a later
+`New` succeeds and ordinary/abort panics follow the selected policy: one call with propagation, two with legacy
+or the default. The recovered handler still resolves the synthetic client through the provider's trusted range.
 
 ## Remaining acceptance
 

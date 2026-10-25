@@ -127,9 +127,12 @@ be undone. An outer recovery middleware can still choose a different response or
 
 The default, `legacy-retry` (also selected by an omitted or empty value), preserves the existing behavior,
 including possible duplicate downstream actions and retries with consumed bodies. Unknown values fail initialization.
+**The default still permits downstream replay; OPS-16 is not fully resolved by adding this opt-in.** Preserving
+compatibility avoids silently removing existing abort retries, at the cost of retaining that risk until a policy is agreed.
 Changing the default or removing deliberate abort retries requires maintainer agreement under
 [OPS-16](https://noqer.atlassian.net/browse/OPS-16). This opt-in does not establish that agreement or change a live configuration.
-See [synthetic replay results and the proposed policy](docs/panic-replay.md) for response semantics and remaining acceptance work.
+See [synthetic replay results and the operator migration checklist](docs/panic-replay.md) for response semantics,
+the proposed policy, and remaining acceptance work.
 
 ## Protecting Against Direct Access
 
