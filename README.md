@@ -148,9 +148,10 @@ cannot override that boundary. A trusted socket peer is sufficient when there ar
 trusted proxies in the header: `198.51.100.66, 203.0.113.10` still resolves to `203.0.113.10`.
 
 When XFF is selected, repeated header fields, empty or malformed entries, more than 32 hops,
-and values over 4,096 bytes return HTTP 400. A chain containing only trusted addresses also
-returns HTTP 400 because it does not identify an untrusted client boundary. This replaces the
-previous behavior that silently dropped malformed entries and selected the first public address.
+and values over 4,096 bytes return HTTP 400. If every parsed address is trusted, the plugin
+selects the first (leftmost) address after validating the complete chain. This supports home
+networks where clients and proxies all use trusted local addresses. Mixed chains still select
+the first untrusted hop from the right. Malformed entries are never silently dropped.
 
 Trust only proxy ranges controlled by your deployment. Every trusted proxy must remove or
 sanitize client-supplied identity headers and accurately append its observed upstream peer to
@@ -169,17 +170,15 @@ Malformed identity headers return a fixed response without echoing their values.
 diagnostics are emitted only at debug level, contain header lengths rather than raw values,
 and do not include stack traces. Single-address identity headers are limited to 45 bytes.
 
-### Migrating private-client deployments
+### Private-network trust and migration
 
 A trusted address means **authorized to assert another host's identity**, not simply permitted
 to connect. The plugin cannot distinguish a private client from a private proxy by address
 syntax. `thrustLocal: true` includes RFC1918, loopback, IPv6 unique-local and link-local
-ranges. If these ranges also contain clients, their addresses are treated as proxies when
-walking XFF. This can produce a new HTTP 400 for a legitimate all-private chain; an overly
-broad trust list can also let a client-supplied public prefix appear authoritative. Allowlisting
-clients as proxies is therefore not a compatibility fix.
+ranges. The defaults are unchanged: trusting these networks intentionally allows hosts within
+them to assert client identity.
 
-An existing middleware configuration illustrates the migration review:
+An existing middleware configuration illustrates this private-network preference:
 
 ```yaml
 thrustLocal: true
@@ -188,32 +187,32 @@ trustedIPs: []
 xForwardedForMode: append
 ```
 
-This configuration trusts private clients as well as private proxies. Cloudflare trust does
-not disambiguate an all-private XFF chain, and outgoing `append` does not change resolution.
-The synthetic broad-trust tests cover this combination using offline provider fixtures. Review
-its actual proxy/client boundaries before upgrading; there is no universal replacement CIDR
-list. The example is documented for operator review, not applied or changed by this PR.
+For a synthetic example, peer `10.0.0.1` with XFF `10.20.0.10, 10.0.0.2` resolves to
+`10.20.0.10` under broad local trust. A single trusted hop `10.20.0.10` also resolves to
+that address. IPv6 works the same way: peer `fd00::1` with `fd20::10, fd00::2` resolves
+to `fd20::10`. An all-trusted chain is not rejected solely for lacking an untrusted hop.
 
-For a synthetic example, a proxy peer `10.0.0.1` with XFF `10.20.0.10, 10.0.0.2` returns
-HTTP 400 with broad local trust: both the client and intermediary are classified as trusted.
-With local trust disabled and **only** `10.0.0.1/32` and `10.0.0.2/32` explicitly trusted,
-the same chain resolves to the private client `10.20.0.10`. It still resolves to that client
-if an attacker prepends `203.0.113.66`. The equivalent IPv6 example uses proxy addresses
-`fd00::1/128`, `fd00::2/128` and client `fd20::10`. These are test examples, not suggested
-deployment ranges.
+The leftmost address does **not** independently prove the actual origin. For example, a
+trusted host can prepend `10.99.0.66` to the IPv4 chain above, and the resulting all-trusted
+chain resolves to that asserted address. A trusted host can also forward a fabricated public
+address: `203.0.113.66, 10.20.0.10, 10.0.0.2` resolves to `203.0.113.66` as the first
+untrusted hop from the right. This is the authority granted by broad private-network trust.
+By contrast, `10.99.0.66, 203.0.113.10, 10.0.0.2` resolves to `203.0.113.10`; the
+untrusted boundary prevents a further-left prefix from overriding it.
 
-Before upgrading, inventory which hops actually sanitize/append identity headers and which
-address ranges contain clients. In an isolated acceptance environment, operators can evaluate
-`thrustLocal: false` with `trustedIPs` limited to their verified proxy hosts or dedicated proxy
-subnets. Keep clients outside those ranges; also review enabled provider trust lists. This
-changes trust for all supported identity headers and can affect `denyUntrusted`, so verify
-both direct-client and proxied traffic before applying a deployment-specific policy.
+Operators who prefer to separate clients from proxies can evaluate `thrustLocal: false` and
+trust only verified proxy hosts or dedicated proxy subnets in an isolated environment. With
+only `10.0.0.1/32` and `10.0.0.2/32` trusted, the chain
+`203.0.113.66, 10.20.0.10, 10.0.0.2` resolves to private client `10.20.0.10`. The equivalent
+IPv6 fixture trusts `fd00::1/128`, `fd00::2/128` with client `fd20::10`. These are synthetic
+examples, not selected deployment ranges. Any operator policy change affects all identity
+headers and can affect `denyUntrusted`; review enabled provider ranges and test both direct
+and proxied traffic. No default or live trust settings are changed by this PR.
 
-Even with precise proxy ranges, an XFF chain containing only those proxies returns HTTP 400:
-there is still no client boundary to identify. The plugin does not guess the leftmost hop or
-fall back to the peer for this ambiguous chain. `xForwardedForMode: replace` only changes the
-outgoing header and does not bypass this check. No defaults or live settings are changed by
-this update.
+`xForwardedForMode` only changes the outgoing header; it does not change identity selection.
+Trusted proxies must sanitize identity headers according to the authority their operators
+intend to grant. Synthetic tests cover the existing broad-trust configuration, precise proxy
+ranges, accepted all-trusted assertions, and mixed-chain boundaries with offline fixtures.
 
 ## Protecting Against Direct Access
 

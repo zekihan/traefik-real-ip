@@ -11,14 +11,13 @@ import (
 )
 
 var (
-	ErrNoUntrustedIPInXForwardedFor = errors.New("no untrusted IP found in X-Forwarded-For")
-	ErrXForwardedForInvalid         = errors.New("header X-Forwarded-For invalid")
-	ErrNoValidIPInXForwardedFor     = errors.New("no valid IP found in X-Forwarded-For")
-	ErrNoPublicIPInXForwardedFor    = errors.New("no public IP found in X-Forwarded-For")
-	ErrInvalidIPFormat              = errors.New("invalid IP format")
-	ErrXRealIPInvalid               = errors.New("header X-Real-IP invalid")
-	ErrCfConnectingIPInvalid        = errors.New("header Cf-Connecting-Ip not found or invalid")
-	ErrEoConnectingIPInvalid        = errors.New("header Eo-Connecting-Ip not found or invalid")
+	ErrXForwardedForInvalid      = errors.New("header X-Forwarded-For invalid")
+	ErrNoValidIPInXForwardedFor  = errors.New("no valid IP found in X-Forwarded-For")
+	ErrNoPublicIPInXForwardedFor = errors.New("no public IP found in X-Forwarded-For")
+	ErrInvalidIPFormat           = errors.New("invalid IP format")
+	ErrXRealIPInvalid            = errors.New("header X-Real-IP invalid")
+	ErrCfConnectingIPInvalid     = errors.New("header Cf-Connecting-Ip not found or invalid")
+	ErrEoConnectingIPInvalid     = errors.New("header Eo-Connecting-Ip not found or invalid")
 )
 
 const (
@@ -162,8 +161,9 @@ func (resolver *IPResolver) handleXForwardedFor(
 		}
 	}
 
-	// Every hop is trusted: the chain does not identify an untrusted client boundary.
-	return nil, ErrNoUntrustedIPInXForwardedFor
+	// Every hop is trusted to assert identity. Preserve the leftmost assertion for local chains.
+	// This is a trust-policy choice, not independent proof of the originating host.
+	return ips[0], nil
 }
 
 func (resolver *IPResolver) handleXRealIP(ctx context.Context, req *http.Request) (net.IP, error) {

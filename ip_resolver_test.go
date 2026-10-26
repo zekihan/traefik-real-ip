@@ -259,7 +259,7 @@ func TestIPResolver_handleXForwardedFor(t *testing.T) {
 			name:    "all trusted",
 			peer:    "192.0.2.1",
 			header:  "192.0.2.2, 192.0.2.3",
-			wantErr: ErrNoUntrustedIPInXForwardedFor, want: "",
+			wantErr: nil, want: "192.0.2.2",
 		},
 		{
 			name:   "hop limit",

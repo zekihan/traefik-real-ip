@@ -14,21 +14,107 @@ func TestPrivateClientTrustPolicy(t *testing.T) {
 		client        string
 		chain         string
 		wantIP        string
+		wantXFF       string
 		proxyCIDRs    []string
 		wantStatus    int
 		trustLocal    bool
 		clientTrusted bool
 	}{
 		{
-			name:          "broad local trust rejects ambiguous private client",
+			name:          "single trusted local IPv4 hop",
+			peer:          "10.0.0.1",
+			client:        "10.20.0.10",
+			chain:         "10.20.0.10",
+			wantIP:        "10.20.0.10",
+			wantXFF:       "10.20.0.10",
+			proxyCIDRs:    nil,
+			wantStatus:    http.StatusOK,
+			trustLocal:    true,
+			clientTrusted: true,
+		},
+		{
+			name:          "multiple trusted local IPv4 hops",
 			peer:          "10.0.0.1",
 			client:        "10.20.0.10",
 			chain:         "10.20.0.10, 10.0.0.2",
-			wantIP:        "",
+			wantIP:        "10.20.0.10",
+			wantXFF:       "10.20.0.10, 10.0.0.2",
 			proxyCIDRs:    nil,
-			wantStatus:    http.StatusBadRequest,
+			wantStatus:    http.StatusOK,
 			trustLocal:    true,
 			clientTrusted: true,
+		},
+		{
+			name:          "single trusted local IPv6 hop",
+			peer:          "fd00::1",
+			client:        "fd20::10",
+			chain:         "fd20::10",
+			wantIP:        "fd20::10",
+			wantXFF:       "fd20::10",
+			proxyCIDRs:    nil,
+			wantStatus:    http.StatusOK,
+			trustLocal:    true,
+			clientTrusted: true,
+		},
+		{
+			name:          "multiple trusted local IPv6 hops",
+			peer:          "fd00::1",
+			client:        "fd20::10",
+			chain:         "fd20::10, fd00::2",
+			wantIP:        "fd20::10",
+			wantXFF:       "fd20::10, fd00::2",
+			proxyCIDRs:    nil,
+			wantStatus:    http.StatusOK,
+			trustLocal:    true,
+			clientTrusted: true,
+		},
+		{
+			name:          "all trusted IPv4 prefix is accepted as identity assertion",
+			peer:          "10.0.0.1",
+			client:        "10.20.0.10",
+			chain:         "10.99.0.66, 10.20.0.10, 10.0.0.2",
+			wantIP:        "10.99.0.66",
+			wantXFF:       "10.99.0.66, 10.20.0.10, 10.0.0.2",
+			proxyCIDRs:    nil,
+			wantStatus:    http.StatusOK,
+			trustLocal:    true,
+			clientTrusted: true,
+		},
+		{
+			name:          "all trusted IPv6 prefix is accepted as identity assertion",
+			peer:          "fd00::1",
+			client:        "fd20::10",
+			chain:         "fd99::66, fd20::10, fd00::2",
+			wantIP:        "fd99::66",
+			wantXFF:       "fd99::66, fd20::10, fd00::2",
+			proxyCIDRs:    nil,
+			wantStatus:    http.StatusOK,
+			trustLocal:    true,
+			clientTrusted: true,
+		},
+		{
+			name:          "mixed IPv4 chain stops at untrusted public client",
+			peer:          "10.0.0.1",
+			client:        "203.0.113.10",
+			chain:         "10.99.0.66, 203.0.113.10, 10.0.0.2",
+			wantIP:        "203.0.113.10",
+			wantXFF:       "203.0.113.10, 10.99.0.66, 10.0.0.2",
+			proxyCIDRs:    nil,
+			wantStatus:    http.StatusOK,
+			trustLocal:    true,
+			clientTrusted: false,
+		},
+		{
+			name:          "mixed IPv6 chain stops at untrusted public client",
+			peer:          "fd00::1",
+			client:        "2001:db8::10",
+			chain:         "fd99::66, 2001:db8::10, fd00::2",
+			wantIP:        "2001:db8::10",
+			wantXFF:       "2001:db8::10, fd99::66, fd00::2",
+			proxyCIDRs:    nil,
+			wantStatus:    http.StatusOK,
+			trustLocal:    true,
+			clientTrusted: false,
 		},
 		{
 			name:          "explicit IPv4 proxies preserve private boundary despite forged prefix",
@@ -36,21 +122,11 @@ func TestPrivateClientTrustPolicy(t *testing.T) {
 			client:        "10.20.0.10",
 			chain:         "203.0.113.66, 10.20.0.10, 10.0.0.2",
 			wantIP:        "10.20.0.10",
+			wantXFF:       "10.20.0.10",
 			proxyCIDRs:    []string{"10.0.0.1/32", "10.0.0.2/32"},
 			wantStatus:    http.StatusOK,
 			trustLocal:    false,
 			clientTrusted: false,
-		},
-		{
-			name:          "broad IPv6 local trust rejects ambiguous private client",
-			peer:          "fd00::1",
-			client:        "fd20::10",
-			chain:         "fd20::10, fd00::2",
-			wantIP:        "",
-			proxyCIDRs:    nil,
-			wantStatus:    http.StatusBadRequest,
-			trustLocal:    true,
-			clientTrusted: true,
 		},
 		{
 			name:          "explicit IPv6 proxies preserve private boundary despite forged prefix",
@@ -58,19 +134,21 @@ func TestPrivateClientTrustPolicy(t *testing.T) {
 			client:        "fd20::10",
 			chain:         "2001:db8::66, fd20::10, fd00::2",
 			wantIP:        "fd20::10",
+			wantXFF:       "fd20::10",
 			proxyCIDRs:    []string{"fd00::1/128", "fd00::2/128"},
 			wantStatus:    http.StatusOK,
 			trustLocal:    false,
 			clientTrusted: false,
 		},
 		{
-			name:          "all explicitly trusted proxies still fail closed",
+			name:          "all explicitly trusted proxies select first",
 			peer:          "10.0.0.1",
 			client:        "10.0.0.2",
 			chain:         "10.0.0.2",
-			wantIP:        "",
+			wantIP:        "10.0.0.2",
+			wantXFF:       "10.0.0.2",
 			proxyCIDRs:    []string{"10.0.0.1/32", "10.0.0.2/32"},
-			wantStatus:    http.StatusBadRequest,
+			wantStatus:    http.StatusOK,
 			trustLocal:    false,
 			clientTrusted: true,
 		},
@@ -95,7 +173,7 @@ func TestPrivateClientTrustPolicy(t *testing.T) {
 				called = true
 
 				if req.Header.Get(XRealIP) != tt.wantIP ||
-					req.Header.Get(XForwardedFor) != tt.wantIP {
+					req.Header.Get(XForwardedFor) != tt.wantXFF {
 					t.Errorf("expected private client %s, got headers %v", tt.wantIP, req.Header)
 				}
 			})

@@ -355,11 +355,11 @@ func TestIPResolver_ForwardedForHeaders(t *testing.T) {
 				traefikrealip.XForwardedFor: "192.168.1.1, 10.0.0.2",
 			},
 			expectedHeaders: map[string]string{
-				traefikrealip.XRealIP:       "10.0.0.1",
+				traefikrealip.XRealIP:       "192.168.1.1",
 				traefikrealip.XIsTrusted:    "yes",
-				traefikrealip.XForwardedFor: "10.0.0.1, 192.168.1.1, 10.0.0.2",
+				traefikrealip.XForwardedFor: "192.168.1.1, 10.0.0.2",
 			},
-			expectedStatus: http.StatusBadRequest, trustedIPs: nil, denyUntrusted: false,
+			expectedStatus: http.StatusOK, trustedIPs: nil, denyUntrusted: false,
 		},
 	}
 
