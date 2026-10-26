@@ -185,8 +185,12 @@ func (resolver *IPResolver) ServeHTTP(rw http.ResponseWriter, req *http.Request)
 
 	srcIP, err := resolver.getSrcIP(ctx, req)
 	if err != nil {
-		resolver.logger.ErrorContext(ctx, "Error getting source IP", slog.Any("error", err))
-		http.Error(rw, err.Error(), http.StatusBadRequest)
+		resolver.logger.DebugContext(
+			ctx,
+			"Invalid source IP",
+			ErrorAttrWithoutStack(ErrInvalidIPFormat),
+		)
+		http.Error(rw, "invalid source IP", http.StatusBadRequest)
 
 		return
 	}
@@ -195,8 +199,8 @@ func (resolver *IPResolver) ServeHTTP(rw http.ResponseWriter, req *http.Request)
 
 	ip, err := resolver.getRealIP(ctx, srcIP, req)
 	if err != nil {
-		resolver.logger.ErrorContext(ctx, "Error getting real IP", slog.Any("error", err))
-		http.Error(rw, err.Error(), http.StatusBadRequest)
+		resolver.logger.DebugContext(ctx, "Invalid identity header", ErrorAttrWithoutStack(err))
+		http.Error(rw, "invalid client IP headers", http.StatusBadRequest)
 
 		return
 	}
@@ -319,7 +323,7 @@ func (resolver *IPResolver) handleTrustedIPNets(ctx context.Context, req *http.R
 		ctx,
 		"Setting header",
 		slog.String("header", XForwardedFor),
-		slog.String("value", strings.Join(newVals, ", ")),
+		slog.Int("valueBytes", len(req.Header.Get(XForwardedFor))),
 	)
 }
 

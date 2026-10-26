@@ -303,9 +303,9 @@ func TestIPResolver_ForwardedForHeaders(t *testing.T) {
 				traefikrealip.XForwardedFor: "1.2.3.4, 1.1.1.1",
 			},
 			expectedHeaders: map[string]string{
-				traefikrealip.XRealIP:       "1.2.3.4",
+				traefikrealip.XRealIP:       "1.1.1.1",
 				traefikrealip.XIsTrusted:    "yes",
-				traefikrealip.XForwardedFor: "1.2.3.4, 1.1.1.1",
+				traefikrealip.XForwardedFor: "1.1.1.1, 1.2.3.4",
 			},
 			expectedStatus: http.StatusOK, trustedIPs: nil, denyUntrusted: false,
 		},
@@ -346,7 +346,7 @@ func TestIPResolver_ForwardedForHeaders(t *testing.T) {
 				traefikrealip.XIsTrusted:    "yes",
 				traefikrealip.XForwardedFor: "1.2.3.4",
 			},
-			expectedStatus: http.StatusOK, trustedIPs: nil, denyUntrusted: false,
+			expectedStatus: http.StatusBadRequest, trustedIPs: nil, denyUntrusted: false,
 		},
 		{
 			desc:   "X-Forwarded-For all private IPs",
@@ -355,9 +355,9 @@ func TestIPResolver_ForwardedForHeaders(t *testing.T) {
 				traefikrealip.XForwardedFor: "192.168.1.1, 10.0.0.2",
 			},
 			expectedHeaders: map[string]string{
-				traefikrealip.XRealIP:       "10.0.0.1",
+				traefikrealip.XRealIP:       "192.168.1.1",
 				traefikrealip.XIsTrusted:    "yes",
-				traefikrealip.XForwardedFor: "10.0.0.1, 192.168.1.1, 10.0.0.2",
+				traefikrealip.XForwardedFor: "192.168.1.1, 10.0.0.2",
 			},
 			expectedStatus: http.StatusOK, trustedIPs: nil, denyUntrusted: false,
 		},
@@ -549,7 +549,7 @@ func TestIPResolver_InvalidHeaders(t *testing.T) {
 				traefikrealip.XIsTrusted:    "yes",
 				traefikrealip.XForwardedFor: "1.2.3.4, invalid",
 			},
-			expectedStatus: http.StatusOK, trustedIPs: nil, denyUntrusted: false,
+			expectedStatus: http.StatusBadRequest, trustedIPs: nil, denyUntrusted: false,
 		},
 	}
 

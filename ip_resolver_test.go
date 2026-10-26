@@ -1,6 +1,7 @@
 package traefik_real_ip
 
 import (
+	"errors"
 	"net"
 	"net/http"
 	"os"
@@ -144,82 +145,178 @@ func TestIPResolver_getRealIP(t *testing.T) {
 }
 
 func TestIPResolver_handleXForwardedFor(t *testing.T) {
-	resolver := &IPResolver{
-		logger: NewPluginLogger(
-			t.Context(),
-			"test",
-			LogLevelDebug,
-		),
-		next:          nil,
-		conf:          nil,
-		name:          "",
-		trustedIPNets: nil,
+	resolver := newTestResolver(t)
+
+	for _, cidr := range []string{"192.0.2.0/24", "2001:db8:ffff::/48"} {
+		_, block, err := net.ParseCIDR(cidr)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		resolver.trustedIPNets = append(resolver.trustedIPNets, block)
 	}
 
 	tests := []struct {
-		name          string
-		headerValue   string
-		expectedIP    string
-		expectedError bool
+		wantErr error
+		name    string
+		peer    string
+		header  string
+		want    string
 	}{
 		{
-			name:        "Single public IP",
-			headerValue: "203.0.113.10",
-			expectedIP:  "203.0.113.10", expectedError: false,
+			name:    "single client",
+			peer:    "192.0.2.1",
+			header:  "203.0.113.10",
+			want:    "203.0.113.10",
+			wantErr: nil,
 		},
 		{
-			name:        "Multiple IPs, first public",
-			headerValue: "203.0.113.10, 192.168.1.1",
-			expectedIP:  "203.0.113.10", expectedError: false,
+			name:   "attacker prefix",
+			peer:   "192.0.2.1",
+			header: "198.51.100.66, 203.0.113.10, 192.0.2.2",
+			want:   "203.0.113.10", wantErr: nil,
 		},
 		{
-			name:        "Multiple IPs, second public",
-			headerValue: "192.168.1.1, 203.0.113.10",
-			expectedIP:  "203.0.113.10", expectedError: false,
+			name:   "multiple trusted proxies",
+			peer:   "192.0.2.1",
+			header: "198.51.100.66, 203.0.113.10, 192.0.2.2, 192.0.2.3",
+			want:   "203.0.113.10", wantErr: nil,
 		},
 		{
-			name:          "Only private IPs",
-			headerValue:   "192.168.1.1, 10.0.0.1",
-			expectedError: true, expectedIP: "",
+			name:   "no trusted header suffix",
+			peer:   "192.0.2.1",
+			header: "198.51.100.66, 203.0.113.10",
+			want:   "203.0.113.10", wantErr: nil,
 		},
 		{
-			name:          "Invalid IP format",
-			headerValue:   "invalid-ip",
-			expectedError: true, expectedIP: "",
+			name:   "private untrusted boundary",
+			peer:   "192.0.2.1",
+			header: "198.51.100.66, 10.0.0.1, 192.0.2.2",
+			want:   "10.0.0.1", wantErr: nil,
 		},
 		{
-			name:        "IPs with spaces",
-			headerValue: " 203.0.113.10 , 192.168.1.1 ",
-			expectedIP:  "203.0.113.10", expectedError: false,
+			name:   "stop before trusted prefix",
+			peer:   "192.0.2.1",
+			header: "192.0.2.4, 203.0.113.10",
+			want:   "203.0.113.10", wantErr: nil,
+		},
+		{
+			name:   "untrusted peer",
+			peer:   "203.0.113.20",
+			header: "198.51.100.66, 192.0.2.2",
+			want:   "203.0.113.20", wantErr: nil,
+		},
+		{
+			name:   "IPv6 suffix",
+			peer:   "2001:db8:ffff::1",
+			header: "198.51.100.66, 2001:db8::10, 2001:db8:ffff::2",
+			want:   "2001:db8::10", wantErr: nil,
+		},
+		{
+			name:   "IPv4 mapped proxy",
+			peer:   "::ffff:192.0.2.1",
+			header: "198.51.100.66, 203.0.113.10, ::ffff:192.0.2.2",
+			want:   "203.0.113.10", wantErr: nil,
+		},
+		{
+			name:   "spaces",
+			peer:   "192.0.2.1",
+			header: " 203.0.113.10 , 192.0.2.2 ",
+			want:   "203.0.113.10", wantErr: nil,
+		},
+		{
+			name:    "malformed prefix",
+			peer:    "192.0.2.1",
+			header:  "invalid, 203.0.113.10, 192.0.2.2",
+			wantErr: ErrXForwardedForInvalid, want: "",
+		},
+		{
+			name:    "malformed suffix",
+			peer:    "192.0.2.1",
+			header:  "203.0.113.10, invalid",
+			wantErr: ErrXForwardedForInvalid, want: "",
+		},
+		{
+			name:    "empty hop",
+			peer:    "192.0.2.1",
+			header:  "203.0.113.10, , 192.0.2.2",
+			wantErr: ErrXForwardedForInvalid, want: "",
+		},
+		{
+			name:    "empty header",
+			peer:    "192.0.2.1",
+			header:  "",
+			wantErr: ErrXForwardedForInvalid,
+			want:    "",
+		},
+		{
+			name:    "address with port",
+			peer:    "192.0.2.1",
+			header:  "203.0.113.10:80",
+			wantErr: ErrXForwardedForInvalid, want: "",
+		},
+		{
+			name:    "all trusted",
+			peer:    "192.0.2.1",
+			header:  "192.0.2.2, 192.0.2.3",
+			wantErr: nil, want: "192.0.2.2",
+		},
+		{
+			name:   "hop limit",
+			peer:   "192.0.2.1",
+			header: "203.0.113.10" + strings.Repeat(", 192.0.2.2", maxForwardedForHops-1),
+			want:   "203.0.113.10", wantErr: nil,
+		},
+		{
+			name:    "too many hops",
+			peer:    "192.0.2.1",
+			header:  "203.0.113.10" + strings.Repeat(", 192.0.2.2", maxForwardedForHops),
+			wantErr: ErrXForwardedForInvalid, want: "",
+		},
+		{
+			name:   "byte limit",
+			peer:   "192.0.2.1",
+			header: "203.0.113.10" + strings.Repeat(" ", maxForwardedForBytes-len("203.0.113.10")),
+			want:   "203.0.113.10", wantErr: nil,
+		},
+		{
+			name:    "too many bytes",
+			peer:    "192.0.2.1",
+			header:  strings.Repeat(" ", maxForwardedForBytes+1),
+			wantErr: ErrXForwardedForInvalid, want: "",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req, _ := http.NewRequestWithContext(t.Context(), http.MethodGet, "/", http.NoBody)
-			req.Header.Set(XForwardedFor, tt.headerValue)
-
-			result, err := resolver.handleXForwardedFor(t.Context(), req)
-
-			if tt.expectedError {
-				if err == nil {
-					t.Errorf("Expected error but got none")
-				}
-
-				return
-			}
-
+			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, "/", http.NoBody)
 			if err != nil {
-				t.Errorf("Unexpected error: %v", err)
-
-				return
+				t.Fatal(err)
 			}
 
-			if result.String() != tt.expectedIP {
-				t.Errorf("Expected IP %s, got %s", tt.expectedIP, result.String())
+			req.Header.Set(XForwardedFor, tt.header)
+
+			ip, err := resolver.handleXForwardedFor(t.Context(), net.ParseIP(tt.peer), req)
+			if !errors.Is(err, tt.wantErr) {
+				t.Fatalf("expected error %v, got %v", tt.wantErr, err)
+			}
+
+			if tt.wantErr == nil && ip.String() != tt.want {
+				t.Fatalf("expected IP %s, got %s", tt.want, ip)
 			}
 		})
 	}
+
+	t.Run("multiple header fields", func(t *testing.T) {
+		req, _ := http.NewRequestWithContext(t.Context(), http.MethodGet, "/", http.NoBody)
+		req.Header.Add(XForwardedFor, "203.0.113.10")
+		req.Header.Add(XForwardedFor, "192.0.2.2")
+
+		_, err := resolver.handleXForwardedFor(t.Context(), net.ParseIP("192.0.2.1"), req)
+		if !errors.Is(err, ErrXForwardedForInvalid) {
+			t.Fatalf("expected ambiguous header rejection, got %v", err)
+		}
+	})
 }
 
 func TestIPResolver_handleXRealIP(t *testing.T) {

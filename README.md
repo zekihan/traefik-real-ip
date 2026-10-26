@@ -134,6 +134,86 @@ Changing the default or removing deliberate abort retries requires maintainer ag
 See [synthetic replay results and the operator migration checklist](docs/panic-replay.md) for response semantics,
 the proposed policy, and remaining acceptance work.
 
+## Forwarded Identity Trust Boundary
+
+`X-Forwarded-For` resolution starts at the socket peer (`RemoteAddr`). Headers from an untrusted
+peer are ignored. For a trusted peer, the plugin validates the entire XFF field, then walks from
+right to left through the contiguous suffix of addresses in the configured trusted ranges. The
+first untrusted hop is the client boundary, even when that address is private. It never skips an
+untrusted hop to select a public address further left.
+
+For example, with only `192.0.2.0/24` trusted, a peer at `192.0.2.1` and XFF
+`198.51.100.66, 203.0.113.10, 192.0.2.2` resolve to `203.0.113.10`. The leftmost address
+cannot override that boundary. A trusted socket peer is sufficient when there are no additional
+trusted proxies in the header: `198.51.100.66, 203.0.113.10` still resolves to `203.0.113.10`.
+
+When XFF is selected, repeated header fields, empty or malformed entries, more than 32 hops,
+and values over 4,096 bytes return HTTP 400. If every parsed address is trusted, the plugin
+selects the first (leftmost) address after validating the complete chain. This supports home
+networks where clients and proxies all use trusted local addresses. Mixed chains still select
+the first untrusted hop from the right. Malformed entries are never silently dropped.
+
+Trust only proxy ranges controlled by your deployment. Every trusted proxy must remove or
+sanitize client-supplied identity headers and accurately append its observed upstream peer to
+XFF (or replace the chain with a verified client address). The existing `thrustLocal` default
+trusts broad private ranges; operators must review whether those ranges contain untrusted
+clients. No trust configuration is changed automatically.
+
+Header priority remains `Cf-Connecting-Ip`, `Eo-Connecting-Ip`, `X-Real-IP`, then XFF; a valid
+higher-priority header bypasses XFF resolution. Trusted proxies must strip or overwrite those
+headers as well. `xForwardedForMode` only controls the outgoing header. `append` retains
+incoming entries, including an untrusted prefix; downstream consumers must not treat every
+retained entry as authoritative. Use `replace` when a downstream consumer requires a single
+resolved client address.
+
+Malformed identity headers return a fixed response without echoing their values. Validation
+diagnostics are emitted only at debug level, contain header lengths rather than raw values,
+and do not include stack traces. Single-address identity headers are limited to 45 bytes.
+
+### Private-network trust and migration
+
+A trusted address means **authorized to assert another host's identity**, not simply permitted
+to connect. The plugin cannot distinguish a private client from a private proxy by address
+syntax. `thrustLocal: true` includes RFC1918, loopback, IPv6 unique-local and link-local
+ranges. The defaults are unchanged: trusting these networks intentionally allows hosts within
+them to assert client identity.
+
+An existing middleware configuration illustrates this private-network preference:
+
+```yaml
+thrustLocal: true
+thrustCloudFlare: true
+trustedIPs: []
+xForwardedForMode: append
+```
+
+For a synthetic example, peer `10.0.0.1` with XFF `10.20.0.10, 10.0.0.2` resolves to
+`10.20.0.10` under broad local trust. A single trusted hop `10.20.0.10` also resolves to
+that address. IPv6 works the same way: peer `fd00::1` with `fd20::10, fd00::2` resolves
+to `fd20::10`. An all-trusted chain is not rejected solely for lacking an untrusted hop.
+
+The leftmost address does **not** independently prove the actual origin. For example, a
+trusted host can prepend `10.99.0.66` to the IPv4 chain above, and the resulting all-trusted
+chain resolves to that asserted address. A trusted host can also forward a fabricated public
+address: `203.0.113.66, 10.20.0.10, 10.0.0.2` resolves to `203.0.113.66` as the first
+untrusted hop from the right. This is the authority granted by broad private-network trust.
+By contrast, `10.99.0.66, 203.0.113.10, 10.0.0.2` resolves to `203.0.113.10`; the
+untrusted boundary prevents a further-left prefix from overriding it.
+
+Operators who prefer to separate clients from proxies can evaluate `thrustLocal: false` and
+trust only verified proxy hosts or dedicated proxy subnets in an isolated environment. With
+only `10.0.0.1/32` and `10.0.0.2/32` trusted, the chain
+`203.0.113.66, 10.20.0.10, 10.0.0.2` resolves to private client `10.20.0.10`. The equivalent
+IPv6 fixture trusts `fd00::1/128`, `fd00::2/128` with client `fd20::10`. These are synthetic
+examples, not selected deployment ranges. Any operator policy change affects all identity
+headers and can affect `denyUntrusted`; review enabled provider ranges and test both direct
+and proxied traffic. No default or live trust settings are changed by this PR.
+
+`xForwardedForMode` only changes the outgoing header; it does not change identity selection.
+Trusted proxies must sanitize identity headers according to the authority their operators
+intend to grant. Synthetic tests cover the existing broad-trust configuration, precise proxy
+ranges, accepted all-trusted assertions, and mixed-chain boundaries with offline fixtures.
+
 ## Protecting Against Direct Access
 
 If your server has a public IP but uses a WAF/CDN like Cloudflare, you may want to ensure that traffic can only reach
@@ -167,8 +247,13 @@ docker-compose up -d
 ### Running Tests
 
 ```bash
-go test ./...
+make test
 ```
+
+Tests serve checked-in provider snapshots and use loopback HTTP fixtures; external service
+requests are blocked. Run `make lint` and `go build ./...` for the other local checks. Actual
+proxy append/sanitization behavior and Traefik/Yaegi integration still require an isolated
+acceptance environment before deployment.
 
 ## License
 
