@@ -1,0 +1,9 @@
+{
+  "actions/checkout@v7.0.1": "3d3c42e5aac5ba805825da76410c181273ba90b1",
+  "actions/setup-go@v7.0.0": "b7ad1dad31e06c5925ef5d2fc7ad053ef454303e",
+  "golangci/golangci-lint-action@v9.3.0": "ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a",
+  "goreleaser/goreleaser-action@v7.3.0": "a4f02ab5355a589de60d917a659ce617ed19b3de",
+  "peter-evans/create-pull-request@v8.1.1": "5f6978faf089d4d20b00c7766989d076bb2fc7f1",
+  "actions/upload-artifact@v4.6.2": "ea165f8d65b6e75b540449e92b4886f43607fa02",
+  "actions/download-artifact@v4.3.0": "d3f86a106a0bac45b974a628896c90dbdf5c8093"
+}
