@@ -6,16 +6,18 @@ on:
     - cron: '0 0 * * *' # Run every day at midnight
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
 
 jobs:
-  pr:
+  fetch:
+    outputs:
+      artifact-id: ${{ steps.artifact.outputs.artifact-id }}
     runs-on: ubuntu-latest
     steps:
       - name: Check Out The Repo
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
           fetch-depth: 0
 
       - name: Fetch IPs and Update Config
@@ -25,9 +27,48 @@ jobs:
           ./scripts/fetch_with_retries.sh "https://www.cloudflare.com/ips-v4" remote_ips/cloudflare_v4 6 false
           ./scripts/fetch_with_retries.sh "https://www.cloudflare.com/ips-v6" remote_ips/cloudflare_v6 6 false
 
-      - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v8.1.1
+      - name: Checksum provider files
+        run: sha256sum remote_ips/cloudflare_v4 remote_ips/cloudflare_v6 > SHA256SUMS
+      - name: Save immutable provider snapshot
+        id: artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
+          name: trusted-ips-${{ github.sha }}
+          path: |
+            remote_ips/cloudflare_v4
+            remote_ips/cloudflare_v6
+            SHA256SUMS
+          if-no-files-found: error
+          retention-days: 1
+  pr:
+    needs: fetch
+    permissions:
+      contents: write
+      pull-requests: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          artifact-ids: ${{ needs.fetch.outputs.artifact-id }}
+          path: snapshot
+          merge-multiple: true
+      - name: Verify and copy provider snapshot
+        run: |
+          cd snapshot
+          sha256sum --check SHA256SUMS
+          install -m 644 remote_ips/cloudflare_v4 ../remote_ips/cloudflare_v4
+          install -m 644 remote_ips/cloudflare_v6 ../remote_ips/cloudflare_v6
+          cd ..
+          rm -rf snapshot
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+        with:
+          add-paths: |
+            remote_ips/cloudflare_v4
+            remote_ips/cloudflare_v6
           commit-message: Update trusted IPs
           title: Update trusted IPs in traefik-real-ip middleware
           body: Update the trusted IPs for Cloudflare and EdgeOne in the traefik-real-ip middleware configuration.

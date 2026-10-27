@@ -2,6 +2,7 @@ name: PR Workflow
 
 on:
   workflow_dispatch:
+  workflow_call:
   pull_request:
     branches:
       - main
@@ -18,21 +19,28 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check Out The Repo
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
           fetch-depth: 0
 
+      - name: Check workflow security policy
+        run: |
+          python3 -m pip install -r .github/scripts/requirements-policy.txt
+          python3 -m unittest discover -s .github/scripts -p 'test_workflow_policy.py'
+          python3 .github/scripts/check_workflows.py
       - name: Set up Go
-        uses: actions/setup-go@v7.0.0
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
           cache: true
           cache-dependency-path: go.sum
 
       - name: Set up GoReleaser
-        uses: goreleaser/goreleaser-action@v7.3.0
+        uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
         with:
           install-only: true
+          version: v2.19.0
 
       - name: Install build dependencies
         run: |
@@ -50,7 +58,7 @@ jobs:
           make tidy
 
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v9.3.0
+        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
 
       - name: Lint
         run: |

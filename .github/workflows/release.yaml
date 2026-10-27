@@ -10,42 +10,32 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
+  checks:
+    uses: ./.github/workflows/pr.yaml
   release:
+    needs: checks
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     steps:
       - name: Check Out The Repo
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
           fetch-depth: 0
 
-      - name: Set up Go
-        uses: actions/setup-go@v7.0.0
-        with:
-          go-version-file: go.mod
-          cache: true
-          cache-dependency-path: go.sum
-
       - name: Set up GoReleaser
-        uses: goreleaser/goreleaser-action@v7.3.0
+        uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
         with:
           install-only: true
+          version: v2.19.0
 
-      - name: Install build dependencies
-        run: |
-          sudo apt-get update -qq
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends make build-essential
-          if [ -f .github/scripts/install_build_deps.sh ]; then
-            echo "Installing build dependencies from .github/scripts/install_build_deps.sh"
-            bash .github/scripts/install_build_deps.sh
-          else
-            echo "No build dependencies script found, skipping."
-          fi
-
-      - name: Make build
-        run: |
-          make release
+      # This plugin has builds.skip=true. Validation runs in the read-only job;
+      # skip GoReleaser hooks so the writer only publishes source-release metadata.
+      - name: Publish source release
+        run: goreleaser release --clean --skip=before
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
