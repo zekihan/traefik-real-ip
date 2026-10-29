@@ -494,6 +494,11 @@ func TestReadResponseCIDRs_EntryAndLineLimits(t *testing.T) {
 		{"overlong comment", "#" + strings.Repeat("x", maxRemoteProviderLineBytes) + "\n192.0.2.0/24", 0, true},
 		{"overlong CIDR", strings.Repeat(" ", maxRemoteProviderLineBytes) + "192.0.2.0/24", 0, true},
 		{"IPv6 default route", "::/0\n", 0, true},
+		{"IPv4 default route", "0.0.0.0/0\n", 0, true},
+		{"mapped IPv4 default route", "::ffff:0:0/96\n", 0, true},
+		{"mapped IPv4 default with host bits", "::ffff:203.0.113.1/96\n", 0, true},
+		{"mapped IPv4 subnet", "::ffff:198.51.100.0/120\n", 1, false},
+		{"mapped IPv4 host", "::ffff:198.51.100.1/128\n", 1, false},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			response := new(http.Response)
