@@ -13,6 +13,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 )
 
 func newTestResolver(t *testing.T) *IPResolver {
@@ -556,5 +557,93 @@ func TestGetProviderIPsFromURL_DecodedByteLimit(t *testing.T) {
 	ips, err := newTestResolver(t).getProviderIPsFromURL(t.Context(), "test", server.URL)
 	if !errors.Is(err, ErrRemoteIPProviderData) || len(ips) != 0 {
 		t.Fatalf("oversized decoded body was accepted: %v, %v", ips, err)
+	}
+}
+
+func TestGetProviderIPs_CanceledWaiter(t *testing.T) {
+	started := make(chan struct{})
+	release := make(chan struct{})
+
+	var requests atomic.Int32
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests.Add(1)
+		close(started)
+
+		select {
+		case <-release:
+			_, _ = io.WriteString(w, "198.51.100.0/24\n")
+		case <-r.Context().Done():
+		}
+	}))
+	defer server.Close()
+	defer close(release)
+
+	provider := remoteIPProvider{
+		name:  "test",
+		urls:  []string{server.URL},
+		cache: new(remoteIPCache),
+	}
+	resolver := newTestResolver(t)
+
+	loaderCtx, stopLoader := context.WithCancel(t.Context())
+	defer stopLoader()
+
+	loaded := make(chan error, 1)
+
+	go func() {
+		_, err := resolver.getProviderIPs(loaderCtx, provider)
+		loaded <- err
+	}()
+
+	<-started
+
+	for _, alreadyCanceled := range []bool{true, false} {
+		name := "deadline while waiting"
+		if alreadyCanceled {
+			name = "already canceled"
+		}
+
+		t.Run(name, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
+			defer cancel()
+
+			want := context.DeadlineExceeded
+
+			if alreadyCanceled {
+				cancel()
+
+				want = context.Canceled
+			}
+
+			waited := make(chan error, 1)
+
+			go func() {
+				_, err := resolver.getProviderIPs(ctx, provider)
+				waited <- err
+			}()
+
+			select {
+			case err := <-waited:
+				if !errors.Is(err, want) {
+					t.Fatalf("expected %v, got %v", want, err)
+				}
+			case <-time.After(500 * time.Millisecond):
+				t.Fatal("canceled waiter blocked behind active provider load")
+			}
+		})
+	}
+
+	// Canceling a waiter must leave the active loader and its publication intact.
+	release <- struct{}{}
+
+	err := <-loaded
+	if err != nil {
+		t.Fatalf("active load failed: %v", err)
+	}
+
+	ips, err := resolver.getProviderIPs(t.Context(), provider)
+	if err != nil || len(ips) != 1 || requests.Load() != 1 {
+		t.Fatalf("expected single cached load, got %v, %v (%d requests)", ips, err, requests.Load())
 	}
 }

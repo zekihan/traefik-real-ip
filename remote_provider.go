@@ -33,8 +33,9 @@ const (
 // cache uninitialized so a later New call can retry without restarting the process.
 // Successful snapshots remain immutable and cached for the process lifetime.
 type remoteIPCache struct {
-	ips []*net.IPNet
-	mu  sync.Mutex
+	loading chan struct{}
+	ips     []*net.IPNet
+	mu      sync.Mutex
 }
 
 // remoteIPProvider describes a remote service exposing CIDR blocks.
@@ -48,13 +49,55 @@ func (resolver *IPResolver) getProviderIPs(
 	ctx context.Context,
 	provider remoteIPProvider,
 ) ([]*net.IPNet, error) {
-	provider.cache.mu.Lock()
-	defer provider.cache.mu.Unlock()
+	for {
+		err := ctx.Err()
+		if err != nil {
+			return nil, fmt.Errorf("waiting for %s ranges: %w", provider.name, err)
+		}
 
-	if len(provider.cache.ips) > 0 {
-		return provider.cache.ips, nil
+		provider.cache.mu.Lock()
+		if len(provider.cache.ips) > 0 {
+			ips := provider.cache.ips
+			provider.cache.mu.Unlock()
+
+			return ips, nil
+		}
+
+		loading := provider.cache.loading
+		if loading == nil {
+			provider.cache.loading = make(chan struct{})
+			provider.cache.mu.Unlock()
+
+			break
+		}
+		provider.cache.mu.Unlock()
+
+		select {
+		case <-ctx.Done():
+			return nil, fmt.Errorf("waiting for %s ranges: %w", provider.name, ctx.Err())
+		case <-loading:
+			// A failed loader leaves the cache retryable for a live caller.
+		}
 	}
 
+	ips, err := resolver.loadProviderIPs(ctx, provider)
+	provider.cache.mu.Lock()
+	if err == nil {
+		provider.cache.ips = ips
+	}
+
+	close(provider.cache.loading)
+	provider.cache.loading = nil
+	provider.cache.mu.Unlock()
+
+	return ips, err
+}
+
+// loadProviderIPs fetches a complete snapshot without holding the cache mutex.
+func (resolver *IPResolver) loadProviderIPs(
+	ctx context.Context,
+	provider remoteIPProvider,
+) ([]*net.IPNet, error) {
 	results := make([]*net.IPNet, 0)
 	seen := make(map[string]bool)
 
@@ -82,9 +125,7 @@ func (resolver *IPResolver) getProviderIPs(
 		return nil, fmt.Errorf("%w: empty provider", ErrRemoteIPProviderData)
 	}
 
-	provider.cache.ips = results
-
-	return provider.cache.ips, nil
+	return results, nil
 }
 
 func (resolver *IPResolver) getProviderIPsFromURL(
