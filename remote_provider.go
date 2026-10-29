@@ -355,8 +355,9 @@ func (resolver *IPResolver) parseCIDRs(
 		}
 
 		// A default route cannot identify a CDN and would authorize every source address.
+		// Mapped IPv6 /96 blocks also cover all IPv4 peers under net.IPNet.Contains.
 		ones, _ := block.Mask.Size()
-		if ones == 0 {
+		if ones == 0 || (block.Contains(net.IPv4zero) && block.Contains(net.IPv4bcast)) {
 			return nil, fmt.Errorf("%w: default route", ErrRemoteIPProviderData)
 		}
 

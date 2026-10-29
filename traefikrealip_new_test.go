@@ -116,3 +116,65 @@ func assertProviderRequest(t *testing.T, handler http.Handler, source string, st
 		t.Fatalf("source %s: expected %d, got %d", source, status, recorder.Code)
 	}
 }
+
+func TestNew_MappedDefaultRouteRejected(t *testing.T) {
+	var ready atomic.Bool
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		if ready.Load() {
+			_, _ = w.Write([]byte("::ffff:198.51.100.0/120\n"))
+		} else {
+			_, _ = w.Write([]byte("198.51.100.0/24\n::ffff:203.0.113.1/96\n"))
+		}
+	}))
+	defer server.Close()
+
+	originalProvider := edgeOneProvider
+	edgeOneProvider = remoteIPProvider{
+		name: originalProvider.name, urls: []string{server.URL}, cache: new(remoteIPCache),
+	}
+
+	t.Cleanup(func() { edgeOneProvider = originalProvider })
+
+	cfg := CreateConfig()
+	cfg.ThrustLocal = false
+	cfg.ThrustCloudFlare = false
+	cfg.ThrustEdgeOne = true
+	cfg.DenyUntrusted = true
+
+	var assertedIP string
+
+	next := http.HandlerFunc(func(_ http.ResponseWriter, req *http.Request) {
+		assertedIP = req.Header.Get(XRealIP)
+	})
+
+	handler, err := New(t.Context(), next, cfg, "test")
+	if handler != nil {
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", http.NoBody)
+		req.RemoteAddr = "203.0.113.1:1234"
+		req.Header.Set(EoConnectingIP, "192.0.2.66")
+
+		recorder := httptest.NewRecorder()
+		handler.ServeHTTP(recorder, req)
+		t.Errorf("default route initialized middleware: arbitrary peer got %d, identity %q",
+			recorder.Code, assertedIP)
+	}
+
+	if !errors.Is(err, ErrRemoteIPProviderData) || !errors.Is(err, ErrGettingEdgeOneIPs) {
+		t.Fatalf("expected provider validation failure, got %v", err)
+	}
+
+	if len(edgeOneProvider.cache.ips) != 0 {
+		t.Fatal("invalid snapshot was cached")
+	}
+
+	ready.Store(true)
+
+	handler, err = New(t.Context(), http.NotFoundHandler(), cfg, "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	assertProviderRequest(t, handler, "198.51.100.1:1234", http.StatusNotFound)
+	assertProviderRequest(t, handler, "203.0.113.1:1234", http.StatusForbidden)
+}

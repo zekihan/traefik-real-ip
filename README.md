@@ -94,8 +94,9 @@ Successful lists are cached for the process lifetime; there is no periodic refre
 
 Each remote response is limited to 1 MiB after HTTP decompression, lines shorter than 4 KiB, and 4,096 CIDR entries
 (counting duplicates). Canonical duplicate ranges are removed within and across provider URLs, and a provider snapshot
-can contain at most 4,096 unique ranges. Empty, malformed, oversized, or default-route (`0.0.0.0/0`, `::/0`) lists are
-rejected in full. These validation limits apply to remote providers; custom `trustedIPs` retain their existing behavior.
+can contain at most 4,096 unique ranges. Empty, malformed, oversized, or default-route lists are rejected in full,
+including `0.0.0.0/0`, `::/0`, and IPv4-mapped equivalents such as `::ffff:0:0/96`. These validation limits apply to
+remote providers; custom `trustedIPs` retain their existing behavior.
 
 ## How It Works
 
