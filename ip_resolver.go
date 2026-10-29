@@ -254,7 +254,17 @@ func (resolver *IPResolver) getSrcIP(ctx context.Context, req *http.Request) (ne
 		return nil, fmt.Errorf("failed to split host and port from RemoteAddr: %w", err)
 	}
 
-	ip := net.ParseIP(temp)
+	host := temp
+	if zone := strings.LastIndex(host, "%"); zone >= 0 {
+		// Zones are socket metadata and apply only to IPv6 peers, never headers.
+		if zone == len(host)-1 || !strings.Contains(host[:zone], ":") {
+			return nil, fmt.Errorf("%w: %s", ErrInvalidIPFormat, temp)
+		}
+
+		host = host[:zone]
+	}
+
+	ip := net.ParseIP(host)
 	if ip == nil {
 		return nil, fmt.Errorf("%w: %s", ErrInvalidIPFormat, temp)
 	}
