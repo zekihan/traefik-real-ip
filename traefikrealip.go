@@ -179,7 +179,11 @@ func New(
 }
 
 func (resolver *IPResolver) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	defer resolver.handlePanic(rw, req)
+	resolver.serveHTTP(rw, req, nil)
+}
+
+func (resolver *IPResolver) serveHTTP(rw http.ResponseWriter, req *http.Request, ip net.IP) {
+	defer resolver.handlePanic(rw, req, &ip)
 
 	ctx := req.Context()
 
@@ -197,12 +201,14 @@ func (resolver *IPResolver) ServeHTTP(rw http.ResponseWriter, req *http.Request)
 
 	resolver.logger.DebugContext(ctx, "Source IP", slog.String("ip", srcIP.String()))
 
-	ip, err := resolver.getRealIP(ctx, srcIP, req)
-	if err != nil {
-		resolver.logger.DebugContext(ctx, "Invalid identity header", ErrorAttrWithoutStack(err))
-		http.Error(rw, "invalid client IP headers", http.StatusBadRequest)
+	if ip == nil {
+		ip, err = resolver.getRealIP(ctx, srcIP, req)
+		if err != nil {
+			resolver.logger.DebugContext(ctx, "Invalid identity header", ErrorAttrWithoutStack(err))
+			http.Error(rw, "invalid client IP headers", http.StatusBadRequest)
 
-		return
+			return
+		}
 	}
 
 	isTrusted := resolver.isTrustedIP(ctx, srcIP)
@@ -327,7 +333,11 @@ func (resolver *IPResolver) handleTrustedIPNets(ctx context.Context, req *http.R
 	)
 }
 
-func (resolver *IPResolver) handlePanic(rw http.ResponseWriter, req *http.Request) {
+func (resolver *IPResolver) handlePanic(
+	rw http.ResponseWriter,
+	req *http.Request,
+	ip *net.IP,
+) {
 	recovered := recover()
 	if recovered != nil && resolver.conf.PanicPolicy == PanicPolicyPropagate {
 		// Preserve the original panic for the enclosing HTTP server or recovery middleware.
@@ -366,7 +376,9 @@ func (resolver *IPResolver) handlePanic(rw http.ResponseWriter, req *http.Reques
 			slog.Int(string(RetryCountKey), retryCount),
 		)
 		req = req.WithContext(context.WithValue(ctx, RetryCountKey, retryCount+1))
-		resolver.ServeHTTP(rw, req)
+		// Reuse the resolved identity: outgoing headers may have been reordered or
+		// modified downstream and are no longer the original proxy assertion.
+		resolver.serveHTTP(rw, req, *ip)
 
 		return // suppress
 	}

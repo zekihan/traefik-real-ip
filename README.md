@@ -127,7 +127,8 @@ rewind request bodies, retry canceled requests, append a replacement response, o
 be undone. An outer recovery middleware can still choose a different response or retry policy.
 
 The default, `legacy-retry` (also selected by an omitted or empty value), preserves the existing behavior,
-including possible duplicate downstream actions and retries with consumed bodies. Unknown values fail initialization.
+including possible duplicate downstream actions and retries with consumed bodies. Abort retries reuse the
+initially resolved client IP rather than resolving identity again from rewritten headers. Unknown values fail initialization.
 **The default still permits downstream replay; OPS-16 is not fully resolved by adding this opt-in.** Preserving
 compatibility avoids silently removing existing abort retries, at the cost of retaining that risk until a policy is agreed.
 Changing the default or removing deliberate abort retries requires maintainer agreement under
