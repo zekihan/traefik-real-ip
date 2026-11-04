@@ -62,18 +62,23 @@ func newPanicResolver(t *testing.T, next http.Handler) *IPResolver {
 	return &IPResolver{
 		logger: NewPluginLogger(t.Context(), "test", LogLevelDebug),
 		conf: &Config{
-			DenyUntrusted:     false,
-			PanicPolicy:       "",
-			LogLevel:          "",
-			TrustedIPs:        nil,
-			ThrustLocal:       false,
-			ThrustCloudFlare:  false,
-			ThrustEdgeOne:     false,
-			XForwardedForMode: XForwardedForModeAppend,
+			DenyUntrusted:            false,
+			PanicPolicy:              "",
+			LogLevel:                 "",
+			TrustedIPs:               nil,
+			ThrustLocal:              false,
+			ThrustCloudFlare:         false,
+			ThrustEdgeOne:            false,
+			XForwardedForMode:        XForwardedForModeAppend,
+			ScopedTrust:              false,
+			ForwardedTrustedIPs:      nil,
+			CloudflareTrustedIPs:     nil,
+			CloudflareAuthHeader:     "",
+			CloudflareAuthSecretFile: "",
 		},
 		name:          "test",
-		trustedIPNets: nil,
-		next:          next,
+		trustedIPNets: nil, scoped: nil,
+		next: next,
 	}
 }
 

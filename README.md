@@ -86,6 +86,11 @@ http:
 | `denyUntrusted`     | boolean          | `false`  | Deny requests from untrusted IPs with 403 Forbidden                                                         |
 | `panicPolicy`       | string           | `legacy-retry` | Panic handling: `legacy-retry` preserves retries; `propagate` prevents middleware replay (see below) |
 | `xForwardedForMode` | string           | `append` | How to write `X-Forwarded-For`: `append` preserves proxy hops; `replace` writes only the resolved client IP |
+| `scopedTrust`       | boolean          | `false`  | Per-header trust and identity-header stripping (see [Scoped trust](#scoped-trust))                          |
+| `forwardedTrustedIPs` | array of strings | `[]`   | Scoped mode: peers allowed to send `X-Real-IP` / `X-Forwarded-For`                                          |
+| `cloudflareTrustedIPs` | array of strings | `[]`  | Scoped mode: extra peers (for example `cloudflared`) allowed to send `Cf-Connecting-Ip`                     |
+| `cloudflareAuthHeader` | string          | `""`   | Scoped mode: header carrying the Cloudflare edge secret                                                     |
+| `cloudflareAuthSecretFile` | string      | `""`   | Scoped mode: file holding the edge secret (one per line, current and previous)                              |
 
 Remote providers must return valid, nonempty CIDR lists from every required URL before the plugin can initialize.
 If an enabled provider fails, `New` returns an error, even when local or custom trusted ranges are configured.
@@ -215,6 +220,50 @@ and proxied traffic. No default or live trust settings are changed by this PR.
 Trusted proxies must sanitize identity headers according to the authority their operators
 intend to grant. Synthetic tests cover the existing broad-trust configuration, precise proxy
 ranges, accepted all-trusted assertions, and mixed-chain boundaries with offline fixtures.
+
+## Scoped trust
+
+`scopedTrust: true` replaces the single trusted list with one list per header, for deployments
+where each listener has a known kind of peer:
+
+| Header | Accepted only from |
+|---|---|
+| `Cf-Connecting-Ip` | Cloudflare ranges (`thrustCloudFlare`) or `cloudflareTrustedIPs`, and with a valid edge secret when `cloudflareAuthHeader` is set |
+| `Eo-Connecting-Ip` | EdgeOne ranges (`thrustEdgeOne`) |
+| `X-Real-IP`, `X-Forwarded-For` | `forwardedTrustedIPs` |
+
+Every other peer is its own client address. After resolution the plugin removes every identity
+assertion (`Cf-Connecting-Ip`, `Cf-Connecting-Ipv6`, `Cf-Pseudo-Ipv4`, `Eo-Connecting-Ip`,
+`True-Client-Ip`, `X-Client-Ip`, `X-Cluster-Client-Ip`, `X-Original-Forwarded-For`,
+`Fastly-Client-Ip`, `Forwarded`, `X-Is-Trusted` and the edge-secret header) and writes the
+resolved address as the only `X-Real-IP` and `X-Forwarded-For` value. `thrustLocal` is ignored
+and `trustedIPs` is rejected in this mode.
+
+Cloudflare publishes one set of edge addresses for all customers, so any Cloudflare zone can send
+`Cf-Connecting-Ip` to your public address. To accept only your own zone, add the secret at the edge
+(for example with a request header Transform Rule) and configure the same value here:
+
+```yaml
+http:
+  middlewares:
+    traefik-real-ip:
+      plugin:
+        traefik-real-ip:
+          scopedTrust: true
+          thrustCloudFlare: false
+          cloudflareTrustedIPs: ["10.42.0.0/16"] # cloudflared pods
+          cloudflareAuthHeader: X-Edge-Auth
+          cloudflareAuthSecretFile: /etc/traefik/secrets/EDGE_AUTH
+```
+
+When `cloudflareAuthHeader` is set, a request from a Cloudflare peer without a valid secret and a
+`Cf-Connecting-Ip` header is refused with `403`. The file may hold two non-empty lines (current
+and previous secret, each at least 16 bytes) so rotation has no gap; it is re-read within ten
+seconds of changing. A missing or invalid file does not stop the middleware from loading: requests
+that need the secret are refused and the error is logged, while other peers are unaffected.
+
+Scoped mode trusts addresses, not connections. Pair each listener with network controls that
+guarantee which peers can reach it.
 
 ## Protecting Against Direct Access
 

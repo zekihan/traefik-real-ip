@@ -39,7 +39,7 @@ func checkInvalidIdentityHeader(t *testing.T, header string, level slog.Level, s
 	resolver := &IPResolver{
 		logger: &PluginLogger{logger: logger, pluginName: "test"},
 		conf:   nil, name: "test",
-		trustedIPNets: []*net.IPNet{trustedNet},
+		trustedIPNets: []*net.IPNet{trustedNet}, scoped: nil,
 		next: http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
 			t.Fatal("invalid identity reached downstream handler")
 		}),
@@ -92,7 +92,7 @@ func TestForwardedIdentityThroughMiddleware(t *testing.T) {
 			resolver := &IPResolver{
 				logger: newTestResolver(t).logger,
 				conf:   conf, name: "test",
-				trustedIPNets: []*net.IPNet{trustedNet},
+				trustedIPNets: []*net.IPNet{trustedNet}, scoped: nil,
 				next: http.HandlerFunc(func(_ http.ResponseWriter, req *http.Request) {
 					called = true
 

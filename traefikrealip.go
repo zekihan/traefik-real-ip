@@ -36,14 +36,25 @@ const (
 
 // Config the plugin configuration.
 type Config struct {
-	LogLevel          string   `json:"logLevel,omitempty"`
-	PanicPolicy       string   `json:"panicPolicy,omitempty"`
-	XForwardedForMode string   `json:"xForwardedForMode,omitempty"`
-	TrustedIPs        []string `json:"trustedIPs,omitempty"`
-	ThrustLocal       bool     `json:"thrustLocal,omitempty"`
-	ThrustCloudFlare  bool     `json:"thrustCloudFlare,omitempty"`
-	ThrustEdgeOne     bool     `json:"thrustEdgeOne,omitempty"`
-	DenyUntrusted     bool     `json:"denyUntrusted,omitempty"`
+	LogLevel          string `json:"logLevel,omitempty"`
+	PanicPolicy       string `json:"panicPolicy,omitempty"`
+	XForwardedForMode string `json:"xForwardedForMode,omitempty"`
+	// CloudflareAuthHeader names the header carrying the edge secret read from
+	// CloudflareAuthSecretFile (scoped mode only).
+	CloudflareAuthHeader     string `json:"cloudflareAuthHeader,omitempty"`
+	CloudflareAuthSecretFile string `json:"cloudflareAuthSecretFile,omitempty"`
+	// ForwardedTrustedIPs and CloudflareTrustedIPs are the scoped-mode peer sets for
+	// X-Real-IP/X-Forwarded-For and Cf-Connecting-Ip respectively.
+	ForwardedTrustedIPs  []string `json:"forwardedTrustedIPs,omitempty"`
+	CloudflareTrustedIPs []string `json:"cloudflareTrustedIPs,omitempty"`
+	TrustedIPs           []string `json:"trustedIPs,omitempty"`
+	ThrustLocal          bool     `json:"thrustLocal,omitempty"`
+	ThrustCloudFlare     bool     `json:"thrustCloudFlare,omitempty"`
+	ThrustEdgeOne        bool     `json:"thrustEdgeOne,omitempty"`
+	DenyUntrusted        bool     `json:"denyUntrusted,omitempty"`
+	// ScopedTrust grants each identity header only to the peers allowed to send it and
+	// strips every other identity header. See README "Scoped trust".
+	ScopedTrust bool `json:"scopedTrust,omitempty"`
 }
 
 // CreateConfig creates the default plugin configuration.
@@ -57,7 +68,27 @@ func CreateConfig() *Config {
 		PanicPolicy:       PanicPolicyLegacyRetry,
 		DenyUntrusted:     false,
 		XForwardedForMode: XForwardedForModeAppend,
+
+		ScopedTrust:              false,
+		ForwardedTrustedIPs:      make([]string, 0),
+		CloudflareTrustedIPs:     make([]string, 0),
+		CloudflareAuthHeader:     "",
+		CloudflareAuthSecretFile: "",
 	}
+}
+
+func validateConfig(config *Config) error {
+	if !isValidPanicPolicy(config.PanicPolicy) {
+		return fmt.Errorf("%w: %s", ErrInvalidPanicPolicy, config.PanicPolicy)
+	}
+
+	if config.XForwardedForMode != "" &&
+		config.XForwardedForMode != XForwardedForModeAppend &&
+		config.XForwardedForMode != XForwardedForModeReplace {
+		return fmt.Errorf("%w: %s", ErrInvalidXForwardedForMode, config.XForwardedForMode)
+	}
+
+	return nil
 }
 
 func isValidPanicPolicy(policy string) bool {
@@ -69,6 +100,7 @@ type IPResolver struct {
 	next          http.Handler
 	conf          *Config
 	logger        *PluginLogger
+	scoped        *scopedTrust
 	name          string
 	trustedIPNets []*net.IPNet
 }
@@ -80,24 +112,23 @@ func New(
 	config *Config,
 	name string,
 ) (http.Handler, error) {
-	if !isValidPanicPolicy(config.PanicPolicy) {
-		return nil, fmt.Errorf("%w: %s", ErrInvalidPanicPolicy, config.PanicPolicy)
-	}
-
-	if config.XForwardedForMode != "" &&
-		config.XForwardedForMode != XForwardedForModeAppend &&
-		config.XForwardedForMode != XForwardedForModeReplace {
-		return nil, fmt.Errorf("%w: %s", ErrInvalidXForwardedForMode, config.XForwardedForMode)
+	configErr := validateConfig(config)
+	if configErr != nil {
+		return nil, configErr
 	}
 
 	ipResolver := &IPResolver{
 		next: next,
 		conf: config,
-		name: name, logger: nil, trustedIPNets: nil,
+		name: name, logger: nil, trustedIPNets: nil, scoped: nil,
 	}
 
 	pluginLogger := NewPluginLogger(ctx, name, config.LogLevel)
 	ipResolver.logger = pluginLogger
+
+	if config.ScopedTrust {
+		return newScopedResolver(ctx, ipResolver, config)
+	}
 
 	trustedIPNets := make([]*net.IPNet, 0)
 
@@ -184,6 +215,12 @@ func (resolver *IPResolver) ServeHTTP(rw http.ResponseWriter, req *http.Request)
 
 func (resolver *IPResolver) serveHTTP(rw http.ResponseWriter, req *http.Request, ip net.IP) {
 	defer resolver.handlePanic(rw, req, &ip)
+
+	if resolver.scoped != nil {
+		resolver.serveScoped(rw, req, &ip)
+
+		return
+	}
 
 	ctx := req.Context()
 

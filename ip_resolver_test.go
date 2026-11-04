@@ -19,7 +19,7 @@ func TestIPResolver_getRealIP(t *testing.T) {
 		next:          nil,
 		conf:          nil,
 		name:          "",
-		trustedIPNets: nil,
+		trustedIPNets: nil, scoped: nil,
 	}
 
 	trustedIPNets := make([]*net.IPNet, 0, len(ipResolver.trustedIPNets))
@@ -112,7 +112,7 @@ func TestIPResolver_getRealIP(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			resolver := &IPResolver{
 				logger:        NewPluginLogger(t.Context(), "test", LogLevelDebug),
-				trustedIPNets: trustedIPNets, next: nil, conf: nil, name: "",
+				trustedIPNets: trustedIPNets, scoped: nil, next: nil, conf: nil, name: "",
 			}
 
 			req, _ := http.NewRequestWithContext(t.Context(), http.MethodGet, "/", http.NoBody)
@@ -329,7 +329,7 @@ func TestIPResolver_handleXRealIP(t *testing.T) {
 		next:          nil,
 		conf:          nil,
 		name:          "",
-		trustedIPNets: nil,
+		trustedIPNets: nil, scoped: nil,
 	}
 
 	tests := []struct {
@@ -405,7 +405,7 @@ func TestIPResolver_handleCFIP(t *testing.T) {
 		next:          nil,
 		conf:          nil,
 		name:          "",
-		trustedIPNets: nil,
+		trustedIPNets: nil, scoped: nil,
 	}
 
 	tests := []struct {
@@ -481,7 +481,7 @@ func TestIPResolver_handleEOIP(t *testing.T) {
 		next:          nil,
 		conf:          nil,
 		name:          "",
-		trustedIPNets: nil,
+		trustedIPNets: nil, scoped: nil,
 	}
 
 	tests := []struct {
@@ -557,7 +557,7 @@ func TestIPResolver_getSrcIP(t *testing.T) {
 		next:          nil,
 		conf:          nil,
 		name:          "",
-		trustedIPNets: nil,
+		trustedIPNets: nil, scoped: nil,
 	}
 
 	tests := []struct {

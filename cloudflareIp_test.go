@@ -16,7 +16,7 @@ func TestIPResolver_getCloudFlareIPs(t *testing.T) {
 	resolver := &IPResolver{logger: logger, next:
 
 	// Create mock servers for IPv4 and IPv6
-	nil, conf: nil, name: "", trustedIPNets: nil}
+	nil, conf: nil, name: "", trustedIPNets: nil, scoped: nil}
 
 	ipv4Server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)

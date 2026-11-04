@@ -24,7 +24,7 @@ func newTestResolver(t *testing.T) *IPResolver {
 		next:          nil,
 		conf:          nil,
 		name:          "",
-		trustedIPNets: nil,
+		trustedIPNets: nil, scoped: nil,
 	}
 }
 

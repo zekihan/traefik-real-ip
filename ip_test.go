@@ -13,8 +13,8 @@ func TestIPResolver_isTrustedIP(t *testing.T) {
 	_, trustedNet3, _ := net.ParseCIDR("172.16.0.0/12")
 
 	resolver := &IPResolver{
-		trustedIPNets: []*net.IPNet{trustedNet1, trustedNet2, trustedNet3},
-		logger:        logger, next: nil, conf: nil, name: "",
+		trustedIPNets: []*net.IPNet{trustedNet1, trustedNet2, trustedNet3}, scoped: nil,
+		logger: logger, next: nil, conf: nil, name: "",
 	}
 
 	tests := []struct {
@@ -70,7 +70,14 @@ func TestIPResolver_isTrustedIP(t *testing.T) {
 }
 
 func TestIPResolver_isPrivateIP(t *testing.T) {
-	resolver := &IPResolver{next: nil, conf: nil, logger: nil, name: "", trustedIPNets: nil}
+	resolver := &IPResolver{
+		next:          nil,
+		conf:          nil,
+		logger:        nil,
+		name:          "",
+		trustedIPNets: nil,
+		scoped:        nil,
+	}
 
 	tests := []struct {
 		name     string
@@ -147,8 +154,8 @@ func TestIPResolver_isPrivateIP(t *testing.T) {
 func TestIPResolver_isTrustedIP_EmptyTrustedNets(t *testing.T) {
 	logger := NewPluginLogger(t.Context(), "test", LogLevelDebug)
 	resolver := &IPResolver{
-		trustedIPNets: []*net.IPNet{},
-		logger:        logger, next: nil, conf: nil, name: "",
+		trustedIPNets: []*net.IPNet{}, scoped: nil,
+		logger: logger, next: nil, conf: nil, name: "",
 	}
 
 	ip := net.ParseIP("192.168.1.1")
