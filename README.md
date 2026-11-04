@@ -3,7 +3,7 @@
 A Traefik middleware plugin that extracts the real client IP address from various HTTP headers.
 
 [![Traefik Plugin](https://img.shields.io/badge/Traefik%20Plugin-Traefik%20Real%20IP-blue)](https://plugins.traefik.io/plugins/67eb72e756c7ea30f22dd6be/traefik-real-ip)
-[![Version](https://img.shields.io/badge/version-0.2.0-green)](https://github.com/zekihan/traefik-real-ip/releases/tag/v0.2.0)
+[![Version](https://img.shields.io/badge/version-0.3.0-green)](https://github.com/zekihan/traefik-real-ip/releases/tag/v0.3.0)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/zekihan/traefik-real-ip/blob/main/LICENSE)
 
 ## Overview
@@ -38,7 +38,7 @@ experimental:
   plugins:
     traefik-real-ip:
       moduleName: github.com/zekihan/traefik-real-ip
-      version: v0.2.0
+      version: v0.3.0
 ```
 
 ## Configuration
@@ -51,7 +51,7 @@ experimental:
   plugins:
     traefik-real-ip:
       moduleName: github.com/zekihan/traefik-real-ip
-      version: v0.2.0
+      version: v0.3.0
 ```
 
 ### Middleware Configuration
@@ -149,7 +149,7 @@ right to left through the contiguous suffix of addresses in the configured trust
 first untrusted hop is the client boundary, even when that address is private. It never skips an
 untrusted hop to select a public address further left.
 
-For example, with only `192.0.2.0/24` trusted, a peer at `192.0.2.1` and XFF
+For example, with only `192.0.3.0/24` trusted, a peer at `192.0.2.1` and XFF
 `198.51.100.66, 203.0.113.10, 192.0.2.2` resolve to `203.0.113.10`. The leftmost address
 cannot override that boundary. A trusted socket peer is sufficient when there are no additional
 trusted proxies in the header: `198.51.100.66, 203.0.113.10` still resolves to `203.0.113.10`.
