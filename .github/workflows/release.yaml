@@ -10,7 +10,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   decide:
-    uses: zekihan/release-workflows/.github/workflows/decide.yaml@2f43b18296123d62f69e1cd3be25bc50f8de7645 # main
+    uses: zekihan/release-workflows/.github/workflows/decide.yaml@5fa11e0c1104623d17a191557a27e86a7715f778 # main
     permissions:
       contents: read
       actions: read
@@ -30,7 +30,7 @@ jobs:
       - decide
       - checks
     if: ${{ startsWith(github.ref, 'refs/tags/v') }}
-    uses: zekihan/release-workflows/.github/workflows/release.yaml@2f43b18296123d62f69e1cd3be25bc50f8de7645 # main
+    uses: zekihan/release-workflows/.github/workflows/release.yaml@5fa11e0c1104623d17a191557a27e86a7715f778 # main
     permissions:
       contents: write
       packages: write
