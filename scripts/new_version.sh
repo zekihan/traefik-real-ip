@@ -38,5 +38,4 @@ git add README.md
 git commit -m "Bump version to ${new_vers}"
 git tag -s -a "v${new_vers}" -m "Version ${new_vers}"
 
-git push origin main
-git push origin "v${new_vers}"
+printf 'Prepared locally. To publish: git push --atomic origin main v%s\n' "${new_vers}"

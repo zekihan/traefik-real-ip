@@ -3,6 +3,11 @@ name: PR Workflow
 on:
   workflow_dispatch:
   workflow_call:
+    inputs:
+      publishing:
+        description: Run container and release validation before publication
+        type: boolean
+        default: false
   pull_request:
     branches:
       - main
@@ -24,6 +29,7 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
 
+          ref: ${{ github.sha }}
       - name: Check workflow security policy
         run: |
           python3 -m pip install -r .github/scripts/requirements-policy.txt
@@ -77,8 +83,9 @@ jobs:
         run: |
           make test/integration
 
+        if: ${{ inputs.publishing }}
       - name: Show integration logs on failure
-        if: failure() && steps.integration_test.outcome == 'failure'
+        if: ${{ inputs.publishing && failure() }}
         run: |
           ./scripts/integration_test_wrapper.sh --logs all
 
