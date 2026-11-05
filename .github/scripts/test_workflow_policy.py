@@ -75,6 +75,9 @@ class RepositoryGuards(unittest.TestCase):
                 self.assertEqual(pins[repo + '@' + version], sha)
             for line in path.read_text().splitlines():
                 if 'uses:' in line and '@' in line:
+                    if 'zekihan/release-workflows/' in line:
+                        self.assertRegex(line, r'@[a-f0-9]{40} # main$')
+                        continue
                     self.assertRegex(line, r'@[a-f0-9]{40} # v[^\s]+$')
 
     def test_pr_has_no_private_credentials(self):
@@ -84,8 +87,8 @@ class RepositoryGuards(unittest.TestCase):
 
     def test_release_waits_for_checks(self):
         doc = yaml.safe_load((self.root / '.github/workflows/release.yaml').read_text())
-        self.assertEqual('checks', doc['jobs']['release']['needs'])
-        self.assertEqual({'contents': 'write'}, doc['jobs']['release']['permissions'])
+        self.assertEqual(['decide', 'checks'], doc['jobs']['release']['needs'])
+        self.assertEqual({'contents': 'write', 'packages': 'write'}, doc['jobs']['release']['permissions'])
 
     def test_update_writer_consumes_immutable_checksummed_snapshot(self):
         doc = yaml.safe_load((self.root / '.github/workflows/fetch_ips.yaml').read_text())
@@ -102,8 +105,9 @@ class RepositoryGuards(unittest.TestCase):
 
     def test_source_release_does_not_execute_build_hooks(self):
         doc = yaml.safe_load((self.root / '.github/workflows/release.yaml').read_text())
-        runs = [s.get('run', '') for s in doc['jobs']['release']['steps']]
-        self.assertIn('goreleaser release --clean --skip=before', runs)
+        self.assertFalse(doc['jobs']['release']['with']['binaries'])
+        self.assertNotIn('prepare-command', doc['jobs']['release']['with'])
+        self.assertRegex(doc['jobs']['release']['uses'], r'release.yaml@[a-f0-9]{40}$')
         config = yaml.safe_load((self.root / '.goreleaser.yaml').read_text())
         self.assertTrue(all(build.get('skip') is True for build in config['builds']))
 

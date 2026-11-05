@@ -15,7 +15,7 @@ builds:
 
 changelog:
   disable: false
-  use: github
+  use: git
   sort: asc
   groups:
     - title: Features
@@ -37,6 +37,6 @@ release:
   disable: false
   draft: false
   replace_existing_draft: true
-  prerelease: auto
+  prerelease: false
   make_latest: true
   mode: keep-existing

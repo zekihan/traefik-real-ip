@@ -310,3 +310,5 @@ acceptance environment before deployment.
 
 This project is licensed under the MIT License - see
 the [LICENSE](https://github.com/zekihan/traefik-real-ip/blob/main/LICENSE) file for details.
+
+Publishing and manual recovery: [Publishing](docs/publishing.md).
