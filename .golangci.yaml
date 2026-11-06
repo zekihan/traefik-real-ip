@@ -38,7 +38,10 @@ formatters:
           replacement: 'a[b:]'
     gofumpt:
       module-path: github.com/zekihan/traefik-real-ip
-      extra-rules: true
+      extra:
+        group-params: true
+        clothe-returns: true
+        balance-calls: true
     goimports:
       local-prefixes:
         - github.com/zekihan/traefik-real-ip
