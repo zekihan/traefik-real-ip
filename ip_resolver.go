@@ -145,7 +145,9 @@ func (resolver *IPResolver) handleXForwardedFor(
 
 	ips := make([]net.IP, len(hops))
 	for i, hop := range hops {
-		ip := net.ParseIP(strings.TrimSpace(hop))
+		// Only optional whitespace (SP, HTAB) may surround list elements; other
+		// Unicode spaces make the entry malformed.
+		ip := net.ParseIP(strings.Trim(hop, " \t"))
 		if ip == nil {
 			return nil, ErrXForwardedForInvalid
 		}

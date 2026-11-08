@@ -280,6 +280,24 @@ func TestIPResolver_handleXForwardedFor(t *testing.T) {
 			want:   "203.0.113.10", wantErr: nil,
 		},
 		{
+			name:    "non-breaking space around entry",
+			peer:    "192.0.2.1",
+			header:  "198.51.100.66\u00a0, 192.0.2.2",
+			wantErr: ErrXForwardedForInvalid, want: "",
+		},
+		{
+			name:    "next line before entry",
+			peer:    "192.0.2.1",
+			header:  "\u0085198.51.100.66, 192.0.2.2",
+			wantErr: ErrXForwardedForInvalid, want: "",
+		},
+		{
+			name:   "tabs and spaces around entries",
+			peer:   "192.0.2.1",
+			header: "\t198.51.100.66 ,\t 192.0.2.2\t",
+			want:   "198.51.100.66", wantErr: nil,
+		},
+		{
 			name:    "too many bytes",
 			peer:    "192.0.2.1",
 			header:  strings.Repeat(" ", maxForwardedForBytes+1),
