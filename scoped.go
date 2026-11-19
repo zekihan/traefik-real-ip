@@ -21,8 +21,9 @@ var (
 	ErrEdgeAuthHeaderName = errors.New(
 		"cloudflareAuthHeader and cloudflareAuthSecretFile must be set together",
 	)
-	ErrEdgeAuthFailed  = errors.New("edge authentication failed")
-	ErrEdgeSecretEmpty = errors.New("edge secret file holds no usable secret")
+	ErrInvalidEdgeAuthHeader = errors.New("cloudflareAuthHeader must be a valid HTTP header name")
+	ErrEdgeAuthFailed        = errors.New("edge authentication failed")
+	ErrEdgeSecretEmpty       = errors.New("edge secret file holds no usable secret")
 )
 
 const (
@@ -93,6 +94,10 @@ func newScopedTrust(config *Config) (*scopedTrust, error) {
 	}
 
 	if config.CloudflareAuthHeader != "" {
+		if strings.ContainsFunc(config.CloudflareAuthHeader, invalidHeaderNameChar) {
+			return nil, ErrInvalidEdgeAuthHeader
+		}
+
 		trust.edgeAuth = &edgeAuth{
 			header: http.CanonicalHeaderKey(config.CloudflareAuthHeader),
 			path:   config.CloudflareAuthSecretFile,
@@ -102,6 +107,11 @@ func newScopedTrust(config *Config) (*scopedTrust, error) {
 	}
 
 	return trust, nil
+}
+
+func invalidHeaderNameChar(char rune) bool {
+	return (char < 'a' || char > 'z') && (char < 'A' || char > 'Z') &&
+		(char < '0' || char > '9') && !strings.ContainsRune("!#$%&'*+-.^_`|~", char)
 }
 
 func parseCIDRs(ranges []string) ([]*net.IPNet, error) {

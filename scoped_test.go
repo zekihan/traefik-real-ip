@@ -405,6 +405,48 @@ func TestScopedConfigErrors(t *testing.T) {
 	}
 }
 
+func TestScopedEdgeAuthHeaderName(t *testing.T) {
+	path := writeSecret(t, edgeSecret)
+
+	for _, name := range []string{"X Edge Auth", "X-Edge-Auth:", "X-Edge-Auth\t", "X-Édge-Auth"} {
+		t.Run(name, func(t *testing.T) {
+			cfg := traefikrealip.CreateConfig()
+			cfg.ScopedTrust = true
+			cfg.ThrustCloudFlare = false
+			cfg.CloudflareTrustedIPs = []string{podCIDRv4}
+			cfg.CloudflareAuthHeader = name
+			cfg.CloudflareAuthSecretFile = path
+
+			handler, err := traefikrealip.New(t.Context(), http.NotFoundHandler(), cfg, "scoped")
+			if err == nil || handler != nil {
+				t.Fatalf("New accepted invalid edge auth header %q", name)
+			}
+		})
+	}
+
+	t.Run("valid token", func(t *testing.T) {
+		const customHeader = "x-edge-auth2!"
+
+		handler := newScoped(t, func(cfg *traefikrealip.Config) {
+			cfg.CloudflareTrustedIPs = []string{podCIDRv4}
+			cfg.CloudflareAuthHeader = customHeader
+			cfg.CloudflareAuthSecretFile = path
+		})
+
+		runScoped(t, handler, &scopedCase{
+			desc:   "custom header name",
+			remote: podIPv4,
+			status: okStatus,
+			headers: map[string][]string{
+				"Cf-Connecting-Ip": {clientIPv4},
+				customHeader:       {edgeSecret},
+			},
+			expected: map[string]string{"X-Real-Ip": clientIPv4},
+			absent:   []string{customHeader},
+		})
+	})
+}
+
 func TestScopedRejectsShortOrExtraSecrets(t *testing.T) {
 	for desc, content := range map[string]string{
 		"short":       "tooshort",
