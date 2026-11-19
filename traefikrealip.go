@@ -344,21 +344,17 @@ func (resolver *IPResolver) handleTrustedIPNets(ctx context.Context, req *http.R
 		return
 	}
 
-	newVals := make([]string, 0)
-	newVals = append(newVals, ip.String())
+	newVals := []string{ip.String()}
 
 	//nolint:modernize // yaegi does not support strings.SplitSeq
 	vals := strings.Split(req.Header.Get(XForwardedFor), ",")
 	for _, val := range vals {
-		if strings.TrimSpace(val) == "" {
+		hop := strings.TrimSpace(val)
+		if hop == "" || net.ParseIP(hop).Equal(ip) {
 			continue
 		}
 
-		if strings.TrimSpace(val) == ip.String() {
-			continue
-		}
-
-		newVals = append(newVals, strings.TrimSpace(val))
+		newVals = append(newVals, hop)
 	}
 
 	req.Header.Set(XForwardedFor, strings.Join(newVals, ", "))
