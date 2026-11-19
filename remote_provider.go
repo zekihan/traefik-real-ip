@@ -159,13 +159,7 @@ func (resolver *IPResolver) getProviderIPsFromURL(
 		return nil, err
 	}
 
-	resp, err := resolver.doRequestWithRetry(ctx, req, providerName, url)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	return resolver.readResponseCIDRs(ctx, resp, providerName, url)
+	return resolver.fetchCIDRsWithRetry(ctx, req, providerName, url)
 }
 
 func (resolver *IPResolver) buildRequest(
@@ -189,12 +183,12 @@ func (resolver *IPResolver) buildRequest(
 	return req, nil
 }
 
-func (resolver *IPResolver) doRequestWithRetry(
+func (resolver *IPResolver) fetchCIDRsWithRetry(
 	ctx context.Context,
 	req *http.Request,
 	providerName string,
 	url string,
-) (*http.Response, error) {
+) ([]*net.IPNet, error) {
 	client := &http.Client{
 		Timeout:       defaultRemoteProviderTimeout,
 		Transport:     nil,
@@ -202,10 +196,7 @@ func (resolver *IPResolver) doRequestWithRetry(
 		Jar:           nil,
 	}
 
-	var (
-		lastErr  error
-		response *http.Response
-	)
+	var lastErr error
 
 	for attempt := 0; attempt <= maxRetries; attempt++ {
 		if attempt > 0 {
@@ -226,70 +217,12 @@ func (resolver *IPResolver) doRequestWithRetry(
 			}
 		}
 
-		response, lastErr = client.Do(req)
-		if lastErr != nil {
-			resolver.logger.WarnContext(
-				ctx,
-				"Request failed, will retry",
-				slog.String("provider", providerName),
-				slog.String("url", url),
-				slog.Int("attempt", attempt+1),
-				slog.Any("error", lastErr),
-			)
-
-			continue
+		ips, retry, err := resolver.fetchCIDRs(ctx, client, req, providerName, url, attempt+1)
+		if !retry {
+			return ips, err
 		}
 
-		if response.StatusCode != http.StatusOK {
-			lastErr = fmt.Errorf("%w: %s", ErrRemoteIPProviderHTTPStatus, response.Status)
-
-			if response.StatusCode >= 400 && response.StatusCode < 500 {
-				resolver.logger.ErrorContext(
-					ctx,
-					"Client error, will not retry",
-					slog.String("provider", providerName),
-					slog.String("url", url),
-					slog.Int("statusCode", response.StatusCode),
-				)
-
-				closeErr := response.Body.Close()
-				if closeErr != nil {
-					resolver.logger.WarnContext(
-						ctx,
-						"Error closing response body",
-						slog.String("provider", providerName),
-						slog.String("url", url),
-						slog.Any("error", closeErr),
-					)
-				}
-
-				return nil, lastErr
-			}
-
-			resolver.logger.WarnContext(
-				ctx,
-				"Non-OK status, retrying",
-				slog.String("provider", providerName),
-				slog.String("url", url),
-				slog.Int("statusCode", response.StatusCode),
-			)
-
-			closeErr := response.Body.Close()
-			if closeErr != nil {
-				resolver.logger.WarnContext(
-					ctx,
-					"Error closing response body",
-					slog.String("provider", providerName),
-					slog.String("url", url),
-					slog.Any("error", closeErr),
-				)
-			}
-
-			continue
-		}
-
-		// Success.
-		return response, nil
+		lastErr = err
 	}
 
 	resolver.logger.ErrorContext(
@@ -305,6 +238,70 @@ func (resolver *IPResolver) doRequestWithRetry(
 		"error fetching %s IPs after %d retries: %w",
 		providerName, maxRetries+1, lastErr,
 	)
+}
+
+func (resolver *IPResolver) fetchCIDRs(
+	ctx context.Context,
+	client *http.Client,
+	req *http.Request,
+	providerName, url string,
+	attempt int,
+) ([]*net.IPNet, bool, error) {
+	resp, err := client.Do(req)
+	if err != nil {
+		resolver.logger.WarnContext(
+			ctx,
+			"Request failed, will retry",
+			slog.String("provider", providerName),
+			slog.String("url", url),
+			slog.Int("attempt", attempt),
+			slog.Any("error", err),
+		)
+
+		return nil, true, fmt.Errorf("sending provider request: %w", err)
+	}
+	defer func() {
+		closeErr := resp.Body.Close()
+		if closeErr != nil {
+			resolver.logger.WarnContext(
+				ctx,
+				"Error closing response body",
+				slog.String("provider", providerName),
+				slog.String("url", url),
+				slog.Any("error", closeErr),
+			)
+		}
+	}()
+
+	if resp.StatusCode == http.StatusOK {
+		ips, readErr := resolver.readResponseCIDRs(ctx, resp, providerName, url)
+
+		return ips, errors.Is(readErr, io.ErrUnexpectedEOF), readErr
+	}
+
+	err = fmt.Errorf("%w: %s", ErrRemoteIPProviderHTTPStatus, resp.Status)
+	if resp.StatusCode >= http.StatusBadRequest &&
+		resp.StatusCode < http.StatusInternalServerError {
+		resolver.logger.ErrorContext(
+			ctx,
+			"Client error, will not retry",
+			slog.String("provider", providerName),
+			slog.String("url", url),
+			slog.Int("statusCode", resp.StatusCode),
+		)
+
+		return nil, false, err
+	}
+
+	resolver.logger.WarnContext(
+		ctx,
+		"Non-OK status, retrying",
+		slog.String("provider", providerName),
+		slog.String("url", url),
+		slog.Int("statusCode", resp.StatusCode),
+	)
+
+	return nil, true, err
 }
 
 func (resolver *IPResolver) readResponseCIDRs(
@@ -350,7 +347,8 @@ func (resolver *IPResolver) parseCIDRs(
 	scanner := bufio.NewScanner(body)
 	scanner.Buffer(make([]byte, maxRemoteProviderLineBytes), maxRemoteProviderLineBytes)
 
-	for scanner.Scan() {
+	// A read error can accompany a final token that ends midway through a CIDR.
+	for scanner.Scan() && scanner.Err() == nil {
 		cidr := strings.TrimSpace(scanner.Text())
 		if cidr == "" || strings.HasPrefix(cidr, "#") {
 			continue
