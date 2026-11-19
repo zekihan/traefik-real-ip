@@ -27,6 +27,10 @@ const (
 	maxRemoteProviderBytes     = 1 << 20
 	maxRemoteProviderLineBytes = 4096
 	maxRemoteProviderCIDRs     = 4096
+
+	anyIPVersion = 0
+	ipv4Version  = 4
+	ipv6Version  = 6
 )
 
 // remoteIPCache publishes only complete, nonempty snapshots. Failed loads leave the
@@ -40,9 +44,14 @@ type remoteIPCache struct {
 
 // remoteIPProvider describes a remote service exposing CIDR blocks.
 type remoteIPProvider struct {
-	cache *remoteIPCache
-	name  string
-	urls  []string
+	cache   *remoteIPCache
+	name    string
+	sources []remoteIPSource
+}
+
+type remoteIPSource struct {
+	url       string
+	ipVersion int
 }
 
 func (resolver *IPResolver) getProviderIPs(
@@ -101,13 +110,25 @@ func (resolver *IPResolver) loadProviderIPs(
 	results := make([]*net.IPNet, 0)
 	seen := make(map[string]bool)
 
-	for _, url := range provider.urls {
-		ips, err := resolver.getProviderIPsFromURL(ctx, provider.name, url)
+	for _, source := range provider.sources {
+		ips, err := resolver.getProviderIPsFromURL(ctx, provider.name, source.url)
 		if err != nil {
-			return nil, fmt.Errorf("fetching %s ranges from %s: %w", provider.name, url, err)
+			return nil, fmt.Errorf("fetching %s ranges from %s: %w", provider.name, source.url, err)
 		}
 
 		for _, block := range ips {
+			version := ipv6Version
+			if block.IP.To4() != nil {
+				version = ipv4Version
+			}
+
+			if source.ipVersion != anyIPVersion && version != source.ipVersion {
+				return nil, fmt.Errorf(
+					"%w: %s feed %s expected IPv%d, got %s",
+					ErrRemoteIPProviderData, provider.name, source.url, source.ipVersion, block,
+				)
+			}
+
 			key := block.String()
 			if !seen[key] {
 				if len(results) == maxRemoteProviderCIDRs {

@@ -117,18 +117,15 @@ func configureReplayProviders(t *testing.T) *atomic.Bool {
 	}))
 	t.Cleanup(server.Close)
 
-	originalCloudflare, originalEdgeOne := cloudflareProvider, edgeOneProvider
-	cloudflareProvider = remoteIPProvider{
-		cache: new(remoteIPCache), name: originalCloudflare.name,
-		urls: []string{server.URL + "/v4", server.URL + "/v6"},
-	}
+	useCloudflareTestFeeds(t, server.URL+"/v4", server.URL+"/v6")
+
+	originalEdgeOne := edgeOneProvider
 	edgeOneProvider = remoteIPProvider{
-		cache: new(remoteIPCache), name: originalEdgeOne.name, urls: []string{server.URL + "/edge"},
+		cache: new(remoteIPCache), name: originalEdgeOne.name,
+		sources: []remoteIPSource{{url: server.URL + "/edge", ipVersion: anyIPVersion}},
 	}
 
-	t.Cleanup(func() {
-		cloudflareProvider, edgeOneProvider = originalCloudflare, originalEdgeOne
-	})
+	t.Cleanup(func() { edgeOneProvider = originalEdgeOne })
 
 	return ready
 }

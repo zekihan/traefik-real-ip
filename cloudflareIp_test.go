@@ -3,8 +3,32 @@ package traefik_real_ip
 import (
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"testing"
 )
+
+func useCloudflareTestFeeds(t *testing.T, ipv4URL, ipv6URL string) {
+	t.Helper()
+
+	fixtureURLs := map[string]string{cloudflareIPv4URL: ipv4URL, cloudflareIPv6URL: ipv6URL}
+	originalProvider := cloudflareProvider
+
+	sources := slices.Clone(originalProvider.sources)
+	for index := range sources {
+		url, ok := fixtureURLs[sources[index].url]
+		if !ok {
+			t.Fatalf("no fixture for Cloudflare feed %s", sources[index].url)
+		}
+
+		sources[index].url = url
+	}
+
+	cloudflareProvider = remoteIPProvider{
+		name: originalProvider.name, sources: sources, cache: new(remoteIPCache),
+	}
+
+	t.Cleanup(func() { cloudflareProvider = originalProvider })
+}
 
 func TestIPResolver_getCloudFlareIPFromURL(t *testing.T) {
 	resolver := newTestResolver(t)
@@ -38,16 +62,7 @@ func TestIPResolver_getCloudFlareIPs(t *testing.T) {
 	}))
 	defer ipv6Server.Close()
 
-	originalProvider := cloudflareProvider
-	cloudflareProvider = remoteIPProvider{
-		name:  originalProvider.name,
-		urls:  []string{ipv4Server.URL, ipv6Server.URL},
-		cache: new(remoteIPCache),
-	}
-
-	defer func() {
-		cloudflareProvider = originalProvider
-	}()
+	useCloudflareTestFeeds(t, ipv4Server.URL, ipv6Server.URL)
 
 	t.Run("singleton behavior", func(t *testing.T) {
 		ips1, err := resolver.getCloudFlareIPs(t.Context())
