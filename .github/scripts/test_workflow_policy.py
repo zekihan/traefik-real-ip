@@ -1,8 +1,10 @@
 import copy
+import os
 import pathlib
 import re
 import json
 import hashlib
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -110,6 +112,50 @@ class RepositoryGuards(unittest.TestCase):
         self.assertRegex(doc['jobs']['release']['uses'], r'release.yaml@[a-f0-9]{40}$')
         config = yaml.safe_load((self.root / '.goreleaser.yaml').read_text())
         self.assertTrue(all(build.get('skip') is True for build in config['builds']))
+
+    def test_refresh_requires_both_downloads_before_checksumming(self):
+        doc = yaml.safe_load((self.root / '.github/workflows/fetch_ips.yaml').read_text())
+        command = '\n'.join(step['run'] for step in doc['jobs']['fetch']['steps'] if 'run' in step)
+        for fail_v6 in [False, True]:
+            with self.subTest(fail_v6=fail_v6), tempfile.TemporaryDirectory() as directory:
+                root = pathlib.Path(directory)
+                (root / 'remote_ips').mkdir()
+                (root / 'remote_ips/cloudflare_v4').write_text('198.51.100.0/24\n')
+                (root / 'remote_ips/cloudflare_v6').write_text('2001:db8:1::/48\n')
+                (root / 'scripts').mkdir()
+                shutil.copy2(self.root / 'scripts/fetch_with_retries.sh', root / 'scripts')
+
+                curl = root / 'curl'
+                curl.write_text('''#!/bin/bash
+case "${@: -3:1}" in
+    */ips-v4) printf '192.0.2.0/24\\n' > "${@: -1}" ;;
+    */ips-v6)
+        if [[ "$FAIL_V6" == true ]]; then
+            printf '2001:db8:' > "${@: -1}"
+            exit 18
+        fi
+        printf '2001:db8:2::/48\\n' > "${@: -1}" ;;
+    *) exit 1 ;;
+esac
+''')
+                curl.chmod(0o755)
+                sleep = root / 'sleep'
+                sleep.write_text('#!/bin/sh\nexit 0\n')
+                sleep.chmod(0o755)
+
+                env = dict(os.environ, PATH=f'{root}:{os.environ["PATH"]}', FAIL_V6=str(fail_v6).lower())
+                result = subprocess.run(['bash', '-e', '-c', command], cwd=root, env=env,
+                                        capture_output=True, text=True, timeout=10)
+                if fail_v6:
+                    self.assertNotEqual(0, result.returncode, result.stdout + result.stderr)
+                    self.assertFalse((root / 'SHA256SUMS').exists())
+                    self.assertFalse((root / 'remote_ips/cloudflare_v6.tmp').exists())
+                    self.assertEqual('2001:db8:1::/48\n', (root / 'remote_ips/cloudflare_v6').read_text())
+                else:
+                    self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+                    self.assertTrue((root / 'SHA256SUMS').exists())
+                    self.assertEqual('192.0.2.0/24\n', (root / 'remote_ips/cloudflare_v4').read_text())
+                    self.assertEqual('2001:db8:2::/48\n', (root / 'remote_ips/cloudflare_v6').read_text())
 
     def test_snapshot_accepts_valid_files_and_rejects_tampering(self):
         doc = yaml.safe_load((self.root / '.github/workflows/fetch_ips.yaml').read_text())
