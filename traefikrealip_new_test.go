@@ -2,6 +2,7 @@ package traefik_real_ip
 
 import (
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
@@ -20,7 +21,9 @@ func TestNew_EmptyEdgeOneProviderRecovers(t *testing.T) {
 
 	originalProvider := edgeOneProvider
 	edgeOneProvider = remoteIPProvider{
-		name: originalProvider.name, urls: []string{server.URL}, cache: new(remoteIPCache),
+		name:    originalProvider.name,
+		sources: []remoteIPSource{{url: server.URL, ipVersion: anyIPVersion}},
+		cache:   new(remoteIPCache),
 	}
 
 	t.Cleanup(func() { edgeOneProvider = originalProvider })
@@ -71,14 +74,7 @@ func TestNew_PartialCloudflareProviderRecovers(t *testing.T) {
 	}))
 	defer server.Close()
 
-	originalProvider := cloudflareProvider
-	cloudflareProvider = remoteIPProvider{
-		name:  originalProvider.name,
-		urls:  []string{server.URL + "/v4", server.URL + "/v6"},
-		cache: new(remoteIPCache),
-	}
-
-	t.Cleanup(func() { cloudflareProvider = originalProvider })
+	useCloudflareTestFeeds(t, server.URL+"/v4", server.URL+"/v6")
 
 	cfg := CreateConfig()
 	cfg.ThrustLocal = false
@@ -103,6 +99,71 @@ func TestNew_PartialCloudflareProviderRecovers(t *testing.T) {
 
 	assertProviderRequest(t, handler, "173.245.48.1:1234", http.StatusNotFound)
 	assertProviderRequest(t, handler, "[2400:cb00::1]:1234", http.StatusNotFound)
+}
+
+func TestNew_CloudflareProviderRejectsWrongAddressFamily(t *testing.T) {
+	const (
+		ipv4Ranges = "192.0.2.0/24\n"
+		ipv6Ranges = "2001:db8::/32\n"
+	)
+
+	for _, test := range []struct {
+		name string
+		ipv4 string
+		ipv6 string
+	}{
+		{"repeated IPv4 feed", ipv4Ranges, ipv4Ranges},
+		{"IPv6 in IPv4 feed", ipv4Ranges + ipv6Ranges, ipv6Ranges},
+		{"mapped IPv4 in IPv6 feed", ipv4Ranges, ipv6Ranges + "::ffff:192.0.2.0/120\n"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var ready atomic.Bool
+
+			server := httptest.NewServer(
+				http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					ipv4, ipv6 := test.ipv4, test.ipv6
+					if ready.Load() {
+						ipv4, ipv6 = ipv4Ranges, ipv6Ranges
+					}
+
+					if r.URL.Path == "/v4" {
+						_, _ = io.WriteString(w, ipv4)
+
+						return
+					}
+
+					_, _ = io.WriteString(w, ipv6)
+				}),
+			)
+			t.Cleanup(server.Close)
+
+			useCloudflareTestFeeds(t, server.URL+"/v4", server.URL+"/v6")
+
+			cfg := CreateConfig()
+			cfg.ThrustLocal = false
+			cfg.DenyUntrusted = true
+
+			handler, err := New(t.Context(), http.NotFoundHandler(), cfg, "test")
+			if handler != nil || !errors.Is(err, ErrGettingCloudflareIPs) ||
+				!errors.Is(err, ErrRemoteIPProviderData) {
+				t.Fatalf("expected address family mismatch, got %T, %v", handler, err)
+			}
+
+			if len(cloudflareProvider.cache.ips) != 0 {
+				t.Fatal("wrong-family response was cached")
+			}
+
+			ready.Store(true)
+
+			handler, err = New(t.Context(), http.NotFoundHandler(), cfg, "test")
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			assertProviderRequest(t, handler, "192.0.2.1:1234", http.StatusNotFound)
+			assertProviderRequest(t, handler, "[2001:db8::1]:1234", http.StatusNotFound)
+		})
+	}
 }
 
 func assertProviderRequest(t *testing.T, handler http.Handler, source string, status int) {
@@ -131,7 +192,9 @@ func TestNew_MappedDefaultRouteRejected(t *testing.T) {
 
 	originalProvider := edgeOneProvider
 	edgeOneProvider = remoteIPProvider{
-		name: originalProvider.name, urls: []string{server.URL}, cache: new(remoteIPCache),
+		name:    originalProvider.name,
+		sources: []remoteIPSource{{url: server.URL, ipVersion: anyIPVersion}},
+		cache:   new(remoteIPCache),
 	}
 
 	t.Cleanup(func() { edgeOneProvider = originalProvider })

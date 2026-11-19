@@ -93,6 +93,7 @@ http:
 | `cloudflareAuthSecretFile` | string      | `""`   | Scoped mode: file holding the edge secret (one per line, current and previous)                              |
 
 Remote providers must return valid, nonempty CIDR lists from every required URL before the plugin can initialize.
+Each Cloudflare feed must contain only ranges for its advertised address family.
 If an enabled provider fails, `New` returns an error, even when local or custom trusted ranges are configured.
 Failed loads do not populate the process cache: a later middleware initialization can retry without a process restart.
 Successful lists are cached for the process lifetime; there is no periodic refresh or persisted fallback.

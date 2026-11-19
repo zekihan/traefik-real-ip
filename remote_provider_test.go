@@ -334,9 +334,9 @@ func TestGetProviderIPs_FailedLoadsRemainRetryable(t *testing.T) {
 			defer server.Close()
 
 			provider := remoteIPProvider{
-				name:  "test",
-				urls:  []string{server.URL},
-				cache: new(remoteIPCache),
+				name:    "test",
+				sources: []remoteIPSource{{url: server.URL, ipVersion: anyIPVersion}},
+				cache:   new(remoteIPCache),
 			}
 			resolver := newTestResolver(t)
 
@@ -367,8 +367,11 @@ func TestGetProviderIPs_ConcurrentPublication(t *testing.T) {
 
 	provider := remoteIPProvider{
 		name:  "test",
-		urls:  []string{server.URL, server.URL},
 		cache: new(remoteIPCache),
+		sources: []remoteIPSource{
+			{url: server.URL, ipVersion: anyIPVersion},
+			{url: server.URL, ipVersion: anyIPVersion},
+		},
 	}
 	resolver := newTestResolver(t)
 
@@ -396,9 +399,9 @@ func TestGetProviderIPs_CanceledLoadRecovers(t *testing.T) {
 	defer server.Close()
 
 	provider := remoteIPProvider{
-		name:  "test",
-		urls:  []string{server.URL},
-		cache: new(remoteIPCache),
+		name:    "test",
+		sources: []remoteIPSource{{url: server.URL, ipVersion: anyIPVersion}},
+		cache:   new(remoteIPCache),
 	}
 	resolver := newTestResolver(t)
 	ctx, cancel := context.WithCancel(t.Context())
@@ -537,8 +540,11 @@ func TestGetProviderIPs_AggregateLimit(t *testing.T) {
 
 	provider := remoteIPProvider{
 		name:  "test",
-		urls:  []string{server.URL, server.URL + "/extra"},
 		cache: new(remoteIPCache),
+		sources: []remoteIPSource{
+			{url: server.URL, ipVersion: anyIPVersion},
+			{url: server.URL + "/extra", ipVersion: anyIPVersion},
+		},
 	}
 
 	ips, err := newTestResolver(t).getProviderIPs(t.Context(), provider)
@@ -585,9 +591,9 @@ func TestGetProviderIPs_CanceledWaiter(t *testing.T) {
 	defer close(release)
 
 	provider := remoteIPProvider{
-		name:  "test",
-		urls:  []string{server.URL},
-		cache: new(remoteIPCache),
+		name:    "test",
+		sources: []remoteIPSource{{url: server.URL, ipVersion: anyIPVersion}},
+		cache:   new(remoteIPCache),
 	}
 	resolver := newTestResolver(t)
 

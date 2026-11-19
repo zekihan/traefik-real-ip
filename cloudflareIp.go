@@ -12,8 +12,11 @@ const (
 
 var cloudflareProvider = remoteIPProvider{
 	name:  "Cloudflare",
-	urls:  []string{cloudflareIPv4URL, cloudflareIPv6URL},
 	cache: new(remoteIPCache),
+	sources: []remoteIPSource{
+		{url: cloudflareIPv4URL, ipVersion: ipv4Version},
+		{url: cloudflareIPv6URL, ipVersion: ipv6Version},
+	},
 }
 
 func (resolver *IPResolver) getCloudFlareIPs(ctx context.Context) ([]*net.IPNet, error) {

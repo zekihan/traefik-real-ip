@@ -46,8 +46,11 @@ func TestIPResolver_getEdgeOneIPs(t *testing.T) {
 
 	edgeOneProvider = remoteIPProvider{
 		name:  originalProvider.name,
-		urls:  []string{ipv4Server.URL, ipv6Server.URL},
 		cache: new(remoteIPCache),
+		sources: []remoteIPSource{
+			{url: ipv4Server.URL, ipVersion: anyIPVersion},
+			{url: ipv6Server.URL, ipVersion: anyIPVersion},
+		},
 	}
 
 	defer func() {

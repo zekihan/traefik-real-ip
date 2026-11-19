@@ -10,9 +10,9 @@ const (
 )
 
 var edgeOneProvider = remoteIPProvider{
-	name:  "EdgeOne",
-	urls:  []string{edgeOneIPURL},
-	cache: new(remoteIPCache),
+	name:    "EdgeOne",
+	cache:   new(remoteIPCache),
+	sources: []remoteIPSource{{url: edgeOneIPURL, ipVersion: anyIPVersion}},
 }
 
 func (resolver *IPResolver) getEdgeOneIPs(ctx context.Context) ([]*net.IPNet, error) {
