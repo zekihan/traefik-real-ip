@@ -342,25 +342,32 @@ func TestScopedMissingSecretFailsClosedPerRequest(t *testing.T) {
 	})
 }
 
-func TestScopedSecretRotationIsPickedUp(t *testing.T) {
+func TestScopedSecretRotationWithSameSizeAndModTime(t *testing.T) {
+	const rotatedSecret = "rotated-secret-0123456789"
+
 	path := writeSecret(t, edgeSecret)
+	modTime := time.Unix(1_700_000_000, 0)
+
+	err := os.Chtimes(path, modTime, modTime)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	handler := newScoped(t, func(cfg *traefikrealip.Config) {
 		cfg.CloudflareTrustedIPs = []string{podCIDRv4}
 		cfg.CloudflareAuthHeader = edgeHeader
 		cfg.CloudflareAuthSecretFile = path
 	})
 
-	// Replace the file the way kubelet does: a new inode with a new mtime.
+	// An atomic replacement can preserve the original size and modification time.
 	next := path + ".new"
 
-	err := os.WriteFile(next, []byte(edgeSecret2), 0o600)
+	err = os.WriteFile(next, []byte(rotatedSecret), 0o600)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	future := time.Now().Add(time.Minute)
-
-	err = os.Chtimes(next, future, future)
+	err = os.Chtimes(next, modTime, modTime)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -373,8 +380,13 @@ func TestScopedSecretRotationIsPickedUp(t *testing.T) {
 	traefikrealip.ExpireEdgeSecretCacheForTest(handler)
 
 	runScoped(t, handler, &scopedCase{
-		desc: "rotated secret", remote: podIPv4, status: okStatus,
-		headers:  map[string][]string{"Cf-Connecting-Ip": {clientIPv4}, edgeHeader: {edgeSecret2}},
+		desc:   "rotated secret",
+		remote: podIPv4,
+		status: okStatus,
+		headers: map[string][]string{
+			"Cf-Connecting-Ip": {clientIPv4},
+			edgeHeader:         {rotatedSecret},
+		},
 		expected: map[string]string{"X-Real-Ip": clientIPv4},
 		absent:   nil,
 	})
