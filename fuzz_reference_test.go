@@ -427,9 +427,15 @@ func (ref *refLegacy) outgoingXFF(client netip.Addr, header http.Header) string 
 
 	for token := range strings.SplitSeq(incoming, ",") {
 		token = strings.TrimSpace(token)
-		if token != "" && token != client.String() {
-			out = append(out, token)
+		if token == "" {
+			continue
 		}
+
+		if hop, ok := refParseIP(token); ok && hop == client {
+			continue
+		}
+
+		out = append(out, token)
 	}
 
 	return strings.Join(out, ", ")

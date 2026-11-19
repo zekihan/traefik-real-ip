@@ -120,3 +120,59 @@ func TestForwardedIdentityThroughMiddleware(t *testing.T) {
 		})
 	}
 }
+
+func TestAppendXForwardedForDeduplicatesResolvedIP(t *testing.T) {
+	cfg := CreateConfig()
+	cfg.ThrustLocal = false
+	cfg.ThrustCloudFlare = false
+	cfg.ThrustEdgeOne = false
+	cfg.TrustedIPs = []string{"192.0.2.0/24"}
+	next := http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) {
+		rw.WriteHeader(http.StatusNoContent)
+	})
+
+	handler, err := New(t.Context(), next, cfg, "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		name, chain, wantIP, wantChain string
+	}{
+		{
+			name:      "expanded IPv6 client",
+			chain:     "2001:0DB8:0:0:0:0:0:7",
+			wantIP:    "2001:db8::7",
+			wantChain: "2001:db8::7",
+		},
+		{
+			name:      "mapped IPv4 client with other hops",
+			chain:     "2001:0DB8::9, ::203.0.113.10, ::FFFF:203.0.113.10, 192.0.2.2",
+			wantIP:    "203.0.113.10",
+			wantChain: "203.0.113.10, 2001:0DB8::9, ::203.0.113.10, 192.0.2.2",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", http.NoBody)
+			req.RemoteAddr = "192.0.2.1:12345"
+			req.Header.Set(XForwardedFor, tt.chain)
+
+			recorder := httptest.NewRecorder()
+			handler.ServeHTTP(recorder, req)
+
+			if recorder.Code != http.StatusNoContent {
+				t.Fatalf("status = %d, want %d", recorder.Code, http.StatusNoContent)
+			}
+
+			if got := req.Header.Get(XRealIP); got != tt.wantIP {
+				t.Errorf("X-Real-IP = %q, want %q", got, tt.wantIP)
+			}
+
+			if got := req.Header.Values(XForwardedFor); len(got) != 1 || got[0] != tt.wantChain {
+				t.Errorf("X-Forwarded-For = %q, want [%q]", got, tt.wantChain)
+			}
+		})
+	}
+}
