@@ -282,7 +282,7 @@ func TestReadResponseCIDRs_ReadError(t *testing.T) {
 	}
 }
 
-func TestDoRequestWithRetry_ContextCancelled(t *testing.T) {
+func TestFetchCIDRsWithRetry_ContextCanceled(t *testing.T) {
 	// Server returns 500 to force a retry; the pre-canceled context fires on the delay.
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -300,16 +300,9 @@ func TestDoRequestWithRetry_ContextCancelled(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel() // pre-cancel so the retry delay fires immediately
 
-	resp, err := resolver.doRequestWithRetry(ctx, req, "test", server.URL)
-	if resp != nil {
-		closeErr := resp.Body.Close()
-		if closeErr != nil {
-			t.Logf("close body: %v", closeErr)
-		}
-	}
-
-	if err == nil {
-		t.Fatal("expected error from canceled context, got nil")
+	ips, err := resolver.fetchCIDRsWithRetry(ctx, req, "test", server.URL)
+	if !errors.Is(err, context.Canceled) || len(ips) != 0 {
+		t.Fatalf("expected cancellation without ranges, got %v, %v", ips, err)
 	}
 }
 
@@ -319,10 +312,15 @@ func TestGetProviderIPs_FailedLoadsRemainRetryable(t *testing.T) {
 		strings.Repeat("x", maxRemoteProviderLineBytes),
 	} {
 		t.Run(firstBody[:min(len(firstBody), 20)], func(t *testing.T) {
-			var ready atomic.Bool
+			var (
+				ready    atomic.Bool
+				requests atomic.Int32
+			)
 
 			server := httptest.NewServer(
 				http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					requests.Add(1)
+
 					body := firstBody
 					if ready.Load() {
 						body = "198.51.100.0/24\n"
@@ -345,11 +343,59 @@ func TestGetProviderIPs_FailedLoadsRemainRetryable(t *testing.T) {
 				t.Fatalf("invalid response published: %v, %v", ips, err)
 			}
 
+			if got := requests.Load(); got != 1 {
+				t.Fatalf("expected no automatic retries for invalid data, got %d requests", got)
+			}
+
 			ready.Store(true)
 
 			ips, err = resolver.getProviderIPs(t.Context(), provider)
 			if err != nil || len(ips) != 1 {
 				t.Fatalf("retry did not recover: %v, %v", ips, err)
+			}
+		})
+	}
+}
+
+func TestGetProviderIPs_RetriesTruncatedBody(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		body string
+	}{
+		{name: "after a CIDR", body: "198.51.100.0/24\n"},
+		{name: "within a CIDR", body: "198.51.100.0/24\n203.0.11"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var requests atomic.Int32
+
+			server := httptest.NewServer(
+				http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					if requests.Add(1) == 1 {
+						w.Header().Set("Content-Length", "128")
+						_, _ = io.WriteString(w, test.body)
+
+						return
+					}
+
+					_, _ = io.WriteString(w, "203.0.113.0/24\n")
+				}),
+			)
+			defer server.Close()
+
+			provider := remoteIPProvider{
+				name:    "test",
+				sources: []remoteIPSource{{url: server.URL, ipVersion: anyIPVersion}},
+				cache:   new(remoteIPCache),
+			}
+			resolver := newTestResolver(t)
+
+			ips, err := resolver.getProviderIPs(t.Context(), provider)
+			if err != nil || len(ips) != 1 || ips[0].String() != "203.0.113.0/24" {
+				t.Fatalf("expected only the complete snapshot, got %v, %v", ips, err)
+			}
+
+			if got := requests.Load(); got != 2 {
+				t.Errorf("expected two requests, got %d", got)
 			}
 		})
 	}
