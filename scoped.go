@@ -62,13 +62,11 @@ type scopedTrust struct {
 // The secret file is re-read when it changes, so a rotated Kubernetes Secret
 // takes effect without rebuilding the middleware.
 type edgeAuth struct {
-	modTime time.Time
 	checked time.Time
 	loadErr error
 	header  string
 	path    string
 	secrets [][]byte
-	size    int64
 	mu      sync.Mutex
 }
 
@@ -101,7 +99,7 @@ func newScopedTrust(config *Config) (*scopedTrust, error) {
 		trust.edgeAuth = &edgeAuth{
 			header: http.CanonicalHeaderKey(config.CloudflareAuthHeader),
 			path:   config.CloudflareAuthSecretFile,
-			mu:     sync.Mutex{}, secrets: nil, modTime: time.Time{}, size: 0,
+			mu:     sync.Mutex{}, secrets: nil,
 			checked: time.Time{}, loadErr: nil,
 		}
 	}
@@ -144,8 +142,8 @@ func (trust *scopedTrust) trusts(ip net.IP) bool {
 		netsContain(trust.edgeOne, ip)
 }
 
-// load returns the configured secrets, re-reading the file at most once per interval
-// and only when its modification time or size changed.
+// load re-reads the file after each cache interval because replacing the file
+// can preserve its size and modification time.
 func (auth *edgeAuth) load(now time.Time) ([][]byte, error) {
 	auth.mu.Lock()
 	defer auth.mu.Unlock()
@@ -156,34 +154,12 @@ func (auth *edgeAuth) load(now time.Time) ([][]byte, error) {
 
 	auth.checked = now
 
-	info, err := os.Stat(auth.path)
-	if err != nil {
-		// Separate assignments: yaegi panics on tuple assignment of nil to fields.
-		auth.secrets = nil
-		auth.loadErr = fmt.Errorf("stat edge secret: %w", err)
-
-		return nil, auth.loadErr
-	}
-
-	if auth.loadErr == nil && auth.secrets != nil &&
-		info.ModTime().Equal(auth.modTime) && info.Size() == auth.size {
-		return auth.secrets, nil
-	}
-
 	secrets, err := readEdgeSecrets(auth.path)
-	if err != nil {
-		auth.secrets = nil
-		auth.loadErr = err
-
-		return nil, err
-	}
-
+	// Separate assignments: yaegi panics on tuple assignment of nil to fields.
 	auth.secrets = secrets
-	auth.loadErr = nil
-	auth.modTime = info.ModTime()
-	auth.size = info.Size()
+	auth.loadErr = err
 
-	return secrets, nil
+	return secrets, err
 }
 
 func readEdgeSecrets(path string) ([][]byte, error) {

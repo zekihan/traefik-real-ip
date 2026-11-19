@@ -469,7 +469,7 @@ func checkEdgeVerify(t *testing.T, path, presented string, repeat bool, secrets 
 
 	auth := &edgeAuth{
 		header: scopedAuthHeader, path: path,
-		mu: sync.Mutex{}, secrets: nil, modTime: time.Time{}, size: 0,
+		mu: sync.Mutex{}, secrets: nil,
 		checked: time.Time{}, loadErr: nil,
 	}
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", http.NoBody)
