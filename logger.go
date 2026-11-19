@@ -9,41 +9,25 @@ import (
 	"strings"
 )
 
-func init() {
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
-		AddSource:   false,
-		Level:       slog.LevelDebug,
-		ReplaceAttr: replaceAttr,
-	}))
-	slog.SetDefault(logger)
-}
-
 type PluginLogger struct {
 	logger     *slog.Logger
 	pluginName string
 }
 
 func NewPluginLogger(ctx context.Context, pluginName, logLevelStr string) *PluginLogger {
-	logLevel := &slog.LevelVar{}
+	logLevel := slog.LevelInfo
+	invalidLevel := false
 
 	switch strings.ToLower(logLevelStr) {
 	case LogLevelDebug:
-		logLevel.Set(slog.LevelDebug)
-	case LogLevelInfo:
-		logLevel.Set(slog.LevelInfo)
+		logLevel = slog.LevelDebug
+	case LogLevelInfo, "":
 	case LogLevelWarn:
-		logLevel.Set(slog.LevelWarn)
+		logLevel = slog.LevelWarn
 	case LogLevelError:
-		logLevel.Set(slog.LevelError)
-	case "":
-		logLevel.Set(slog.LevelInfo)
+		logLevel = slog.LevelError
 	default:
-		slog.WarnContext(
-			ctx,
-			"Invalid log level, using info",
-			slog.String("level", logLevelStr),
-		)
-		logLevel.Set(slog.LevelInfo)
+		invalidLevel = true
 	}
 
 	opts := &slog.HandlerOptions{
@@ -52,13 +36,15 @@ func NewPluginLogger(ctx context.Context, pluginName, logLevelStr string) *Plugi
 		ReplaceAttr: replaceAttr,
 	}
 
-	l := slog.New(slog.NewTextHandler(os.Stdout, opts))
-	slog.SetDefault(l)
-
-	return &PluginLogger{
-		logger:     l,
+	logger := &PluginLogger{
+		logger:     slog.New(slog.NewTextHandler(os.Stdout, opts)),
 		pluginName: pluginName,
 	}
+	if invalidLevel {
+		logger.WarnContext(ctx, "Invalid log level, using info", slog.String("level", logLevelStr))
+	}
+
+	return logger
 }
 
 func replaceAttr(_ []string, attr slog.Attr) slog.Attr {

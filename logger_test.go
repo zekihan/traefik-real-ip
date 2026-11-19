@@ -15,6 +15,22 @@ func TestNewPluginLogger(t *testing.T) {
 	}
 }
 
+func TestNewPluginLogger_PreservesDefault(t *testing.T) {
+	hostLogger := slog.Default()
+
+	t.Cleanup(func() {
+		if slog.Default() != hostLogger {
+			slog.SetDefault(hostLogger)
+		}
+	})
+
+	NewPluginLogger(t.Context(), "test-plugin", LogLevelError)
+
+	if slog.Default() != hostLogger {
+		t.Fatal("creating a plugin logger replaced the host's default logger")
+	}
+}
+
 func TestNewPluginLogger_LogLevels(t *testing.T) {
 	levels := []string{
 		LogLevelDebug,
