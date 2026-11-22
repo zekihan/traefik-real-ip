@@ -178,6 +178,180 @@ func assertProviderRequest(t *testing.T, handler http.Handler, source string, st
 	}
 }
 
+func TestNew_ScopedEdgeOneFeedRecovers(t *testing.T) {
+	var ready atomic.Bool
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		if ready.Load() {
+			_, _ = w.Write([]byte("198.51.100.0/24\n"))
+		}
+	}))
+	defer server.Close()
+
+	useEdgeOneTestFeed(t, server.URL)
+
+	cfg := scopedEdgeOneConfig()
+
+	handler, err := New(t.Context(), http.NotFoundHandler(), cfg, "scoped-edgeone")
+	if handler != nil || !errors.Is(err, ErrGettingEdgeOneIPs) {
+		t.Fatalf("expected failed initialization, got %T, %v", handler, err)
+	}
+
+	if len(edgeOneProvider.cache.ips) != 0 {
+		t.Fatal("empty edgeone response was cached")
+	}
+
+	ready.Store(true)
+
+	handler, err = New(t.Context(), http.NotFoundHandler(), cfg, "scoped-edgeone")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	status, headers := scopedEdgeRequest(
+		t,
+		handler,
+		"198.51.100.1:1234",
+		EoConnectingIP,
+		"203.0.113.8",
+	)
+	if status != http.StatusOK {
+		t.Fatalf("edgeone peer: %d", status)
+	}
+
+	if headers.Get(XRealIP) != "203.0.113.8" || headers.Get(XForwardedFor) != "203.0.113.8" {
+		t.Fatalf("identity headers: %v", headers)
+	}
+
+	if headers.Get(EoConnectingIP) != "" {
+		t.Fatalf("Eo-Connecting-Ip not stripped: %q", headers.Get(EoConnectingIP))
+	}
+}
+
+func TestNew_ScopedEdgeOneIgnoresOtherHeaders(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte("198.51.100.0/24\n"))
+	}))
+	defer server.Close()
+
+	useEdgeOneTestFeed(t, server.URL)
+
+	handler, err := New(
+		t.Context(),
+		http.NotFoundHandler(),
+		scopedEdgeOneConfig(),
+		"scoped-edgeone",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	status, headers := scopedEdgeRequest(
+		t,
+		handler,
+		"198.51.100.1:1234",
+		XForwardedFor,
+		"203.0.113.9",
+	)
+	if status != http.StatusOK || headers.Get(XRealIP) != "198.51.100.1" {
+		t.Fatalf("xff from edgeone peer: status %d identity %q", status, headers.Get(XRealIP))
+	}
+
+	status, _ = scopedEdgeRequest(t, handler, "198.51.100.1:1234", EoConnectingIP, "not-an-ip")
+	if status != http.StatusBadRequest {
+		t.Fatalf("invalid eo header: %d", status)
+	}
+
+	status, headers = scopedEdgeRequest(
+		t,
+		handler,
+		"203.0.113.9:1234",
+		EoConnectingIP,
+		"198.51.100.8",
+	)
+	if status != http.StatusOK || headers.Get(XRealIP) != "203.0.113.9" {
+		t.Fatalf("non-edgeone peer: status %d identity %q", status, headers.Get(XRealIP))
+	}
+}
+
+func scopedEdgeOneConfig() *Config {
+	cfg := CreateConfig()
+	cfg.ScopedTrust = true
+	cfg.ThrustLocal = false
+	cfg.ThrustCloudFlare = false
+	cfg.ThrustEdgeOne = true
+
+	return cfg
+}
+
+func useEdgeOneTestFeed(t *testing.T, url string) {
+	t.Helper()
+
+	originalProvider := edgeOneProvider
+	edgeOneProvider = remoteIPProvider{
+		name:    originalProvider.name,
+		sources: []remoteIPSource{{url: url, ipVersion: anyIPVersion}},
+		cache:   new(remoteIPCache),
+	}
+
+	t.Cleanup(func() { edgeOneProvider = originalProvider })
+}
+
+func scopedEdgeRequest(
+	t *testing.T,
+	handler http.Handler,
+	remote, header, value string,
+) (int, http.Header) {
+	t.Helper()
+
+	var got http.Header
+
+	resolver, ok := handler.(*IPResolver)
+	if !ok {
+		t.Fatal("handler is not an IPResolver")
+	}
+
+	resolver.next = http.HandlerFunc(func(_ http.ResponseWriter, req *http.Request) {
+		got = req.Header.Clone()
+	})
+
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", http.NoBody)
+	req.RemoteAddr = remote
+
+	if header != "" {
+		req.Header.Set(header, value)
+	}
+
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, req)
+
+	return recorder.Code, got
+}
+
+func TestNew_ScopedCloudflareFeedFailure(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	useCloudflareTestFeeds(t, server.URL+"/v4", server.URL+"/v6")
+
+	cfg := CreateConfig()
+	cfg.ScopedTrust = true
+	cfg.ThrustLocal = false
+	cfg.ThrustCloudFlare = true
+	cfg.ThrustEdgeOne = false
+
+	handler, err := New(t.Context(), http.NotFoundHandler(), cfg, "scoped-cloudflare")
+	if handler != nil || !errors.Is(err, ErrGettingCloudflareIPs) {
+		t.Fatalf("expected failed initialization, got %T, %v", handler, err)
+	}
+
+	if len(cloudflareProvider.cache.ips) != 0 {
+		t.Fatal("failed cloudflare load was cached")
+	}
+}
+
 func TestNew_MappedDefaultRouteRejected(t *testing.T) {
 	var ready atomic.Bool
 
