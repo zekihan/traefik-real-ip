@@ -16,7 +16,6 @@ import (
 
 // Static errors.
 var (
-	ErrGettingLocalIPs          = errors.New("error getting local IPs")
 	ErrGettingCloudflareIPs     = errors.New("error getting Cloudflare IPs")
 	ErrGettingEdgeOneIPs        = errors.New("error getting EdgeOne IPs")
 	ErrInvalidTrustedIPRange    = errors.New("invalid trusted IP range")
@@ -105,7 +104,7 @@ type IPResolver struct {
 	trustedIPNets []*net.IPNet
 }
 
-// New created a new IPResolver plugin.
+// New returns middleware that resolves the client IP from trusted peers.
 func New(
 	ctx context.Context,
 	next http.Handler,

@@ -472,6 +472,72 @@ func TestIPResolver_MultipleHeaders(t *testing.T) {
 	}
 }
 
+func TestIPResolver_PrivateXRealIPSkipped(t *testing.T) {
+	testCases := []*testCase{
+		{
+			desc:   "private X-Real-IP falls through to X-Forwarded-For",
+			remote: "10.0.0.1",
+			reqHeaders: map[string]string{
+				traefikrealip.XRealIP:       "192.168.1.50",
+				traefikrealip.XForwardedFor: "203.0.113.10, 10.0.0.2",
+			},
+			expectedHeaders: map[string]string{
+				traefikrealip.XRealIP:       "203.0.113.10",
+				traefikrealip.XIsTrusted:    "yes",
+				traefikrealip.XForwardedFor: "203.0.113.10, 10.0.0.2",
+			},
+			expectedStatus: http.StatusOK, trustedIPs: nil, denyUntrusted: false,
+		},
+		{
+			desc:   "link-local X-Real-IP without X-Forwarded-For uses the socket peer",
+			remote: "10.0.0.1",
+			reqHeaders: map[string]string{
+				traefikrealip.XRealIP: "169.254.1.1",
+			},
+			expectedHeaders: map[string]string{
+				traefikrealip.XRealIP:       "10.0.0.1",
+				traefikrealip.XIsTrusted:    "yes",
+				traefikrealip.XForwardedFor: "10.0.0.1",
+			},
+			expectedStatus: http.StatusOK, trustedIPs: nil, denyUntrusted: false,
+		},
+		{
+			desc:   "link-local multicast X-Real-IP is skipped",
+			remote: "10.0.0.1",
+			reqHeaders: map[string]string{
+				traefikrealip.XRealIP: "224.0.0.1",
+			},
+			expectedHeaders: map[string]string{
+				traefikrealip.XRealIP:       "10.0.0.1",
+				traefikrealip.XIsTrusted:    "yes",
+				traefikrealip.XForwardedFor: "10.0.0.1",
+			},
+			expectedStatus: http.StatusOK, trustedIPs: nil, denyUntrusted: false,
+		},
+		{
+			desc:   "carrier-grade NAT X-Real-IP is accepted",
+			remote: "10.0.0.1",
+			reqHeaders: map[string]string{
+				traefikrealip.XRealIP: "100.64.0.1",
+			},
+			expectedHeaders: map[string]string{
+				traefikrealip.XRealIP:       "100.64.0.1",
+				traefikrealip.XIsTrusted:    "yes",
+				traefikrealip.XForwardedFor: "100.64.0.1",
+			},
+			expectedStatus: http.StatusOK, trustedIPs: nil, denyUntrusted: false,
+		},
+	}
+
+	for _, test := range testCases {
+		t.Run(test.desc, func(t *testing.T) {
+			recorder, req, handler := setupTest(t, test)
+			handler.ServeHTTP(recorder, req)
+			validateTestResult(t, test, recorder, req)
+		})
+	}
+}
+
 func TestIPResolver_XForwardedForModeReplace(t *testing.T) {
 	test := &testCase{
 		desc:       "X-Forwarded-For is replaced with the resolved client IP",

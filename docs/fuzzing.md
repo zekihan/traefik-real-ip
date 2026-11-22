@@ -19,9 +19,12 @@ parsing or containment code with production:
 - trust containment through `net/netip` prefixes, with IPv4-mapped IPv6 prefixes normalised to IPv4 so
   `::ffff:10.0.0.0/104` and `10.0.0.0/8` match the same peers;
 - the legacy resolution order (`Cf-Connecting-Ip` → `Eo-Connecting-Ip` → `X-Real-IP` →
-  `X-Forwarded-For`, headers only consulted for trusted peers), the right-to-left `X-Forwarded-For` walk
-  (first untrusted hop from the right, else the leftmost hop), header limits (32 hops, 4096 bytes, 45 bytes
-  for single-IP headers), and the outgoing `X-Forwarded-For` in append and replace mode;
+  `X-Forwarded-For`, headers only consulted for trusted peers), skipping a private or link-local
+  `X-Real-IP` (loopback, RFC 1918, IPv6 unique-local, link-local unicast and multicast, including
+  IPv4-mapped forms) while still accepting a private `Cf-Connecting-Ip` or `Eo-Connecting-Ip`, the
+  right-to-left `X-Forwarded-For` walk (first untrusted hop from the right, else the leftmost hop),
+  header limits (32 hops, 4096 bytes, 45 bytes for single-IP headers), and the outgoing
+  `X-Forwarded-For` in append and replace mode;
 - the scoped-trust rules (`refScoped` in `fuzz_scoped_test.go`).
 
 ## Targets and properties
@@ -31,7 +34,7 @@ parsing or containment code with production:
 | `FuzzLegacyResolve` | `fuzz_legacy_test.go` | peer, trusted CIDRs, the four identity headers (single or repeated lines), mode / abort flags | Full `ServeHTTP` vs reference: status, `X-Real-IP` (canonical, single value), `X-Is-Trusted`, outgoing `X-Forwarded-For` in append and replace mode. Independent provenance oracle: a client other than the peer must come from an identity header of a trusted peer, and an `X-Forwarded-For` client must have only trusted hops on its right. An untrusted peer is always attributed to itself. The abort-retry path keeps the same identity. |
 | `FuzzForwardedForChain` | `fuzz_legacy_test.go` | byte string selecting hops from a pool of trusted, look-alike (`::a01:203`, `64:ff9b::`, `2002::`, `::ffff:0:x`), untrusted and malformed entries, plus surrounding whitespace | Trust walk vs reference; the result is never left of an untrusted hop; equivalent spellings of the chain (OWS, IPv4-mapped, expanded / upper-case IPv6) resolve identically. |
 | `FuzzRawHTTPRequest` | `fuzz_legacy_test.go` | raw HTTP/1.1 request bytes parsed with `http.ReadRequest` | Reference agreement on whatever `net/http` accepts; debug log output stays bounded and never echoes long raw header values; re-encoding with different header-name case and optional whitespace gives the same identity output. |
-| `FuzzScopedResolve` | `fuzz_scoped_test.go` | peer from each trust class, identity headers, edge secret, 8 config variants (edge auth on/off, `denyUntrusted`, Cloudflare/forwarded overlap) | Reference agreement: `Cf-Connecting-Ip` only from Cloudflare peers (with a valid edge secret when configured), `Eo-Connecting-Ip` only from EdgeOne peers, `X-Real-IP` / `X-Forwarded-For` only from forwarded peers. All other identity headers and the secret header are stripped before `next`. Abort-retry keeps the identity. |
+| `FuzzScopedResolve` | `fuzz_scoped_test.go` | peer from each trust class, identity headers, edge secret, 8 config variants (edge auth on/off, `denyUntrusted`, Cloudflare/forwarded overlap) | Reference agreement: `Cf-Connecting-Ip` only from Cloudflare peers (with a valid edge secret when configured), `Eo-Connecting-Ip` only from EdgeOne peers, `X-Real-IP` / `X-Forwarded-For` only from forwarded peers. A private or link-local `X-Real-IP` falls through to `X-Forwarded-For` or the socket peer. All other identity headers and the secret header are stripped before `next`. Abort-retry keeps the identity. |
 | `FuzzEdgeSecrets` | `fuzz_scoped_test.go` | secret file contents, presented value, repeat flag | Parser vs reference (at most 2 trimmed, nonempty secrets of at least 16 bytes, file at most 4 KiB). `verify` accepts only exactly one header value equal to a loaded secret. |
 | `FuzzProviderCIDRs` | `fuzz_config_test.go` | provider response body | An accepted snapshot is nonempty, bounded, deduplicated, free of default routes (including mapped spellings) and equal to the reference parse. Any invalid entry rejects the whole response. |
 | `FuzzSourceAddr` | `fuzz_config_test.go` | `RemoteAddr` string | A zone is accepted only after an IPv6 literal; the parsed peer equals the reference. |

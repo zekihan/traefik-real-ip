@@ -109,8 +109,8 @@ remote providers; custom `trustedIPs` retain their existing behavior.
 1. The plugin extracts the source IP from the incoming request
 2. It checks if the source IP is in the trusted IPs list
 3. If `denyUntrusted` is enabled and the source IP is not trusted, it returns a 403 Forbidden response
-4. If trusted, it looks for real IP in headers in this order: `Cf-Connecting-Ip`, `Eo-Connecting-Ip`, `X-Real-IP`, then
-   `X-Forwarded-For`.
+4. If trusted, it looks for the real IP in headers in this order: `Cf-Connecting-Ip`, `Eo-Connecting-Ip`,
+   `X-Real-IP`, then `X-Forwarded-For`. A private or link-local `X-Real-IP` is skipped; see below.
 5. It updates the request headers with the discovered real IP
 6. Adds an `X-Is-Trusted: yes|no` header indicating if the source was trusted
 
@@ -150,10 +150,11 @@ right to left through the contiguous suffix of addresses in the configured trust
 first untrusted hop is the client boundary, even when that address is private. It never skips an
 untrusted hop to select a public address further left.
 
-For example, with only `192.0.3.0/24` trusted, a peer at `192.0.2.1` and XFF
-`198.51.100.66, 203.0.113.10, 192.0.2.2` resolve to `203.0.113.10`. The leftmost address
-cannot override that boundary. A trusted socket peer is sufficient when there are no additional
-trusted proxies in the header: `198.51.100.66, 203.0.113.10` still resolves to `203.0.113.10`.
+For example, with only `192.0.2.0/24` trusted, a peer at `192.0.2.1` and XFF
+`198.51.100.66, 203.0.113.10, 192.0.2.2` resolve to `203.0.113.10`. The socket peer and the
+rightmost hop are inside that range; the leftmost address cannot override that boundary. A
+trusted socket peer is sufficient when there are no additional trusted proxies in the header:
+`198.51.100.66, 203.0.113.10` still resolves to `203.0.113.10`.
 
 When XFF is selected, repeated header fields, empty or malformed entries, more than 32 hops,
 and values over 4,096 bytes return HTTP 400. If every parsed address is trusted, the plugin
@@ -168,8 +169,13 @@ trusts broad private ranges; operators must review whether those ranges contain 
 clients. No trust configuration is changed automatically.
 
 Header priority remains `Cf-Connecting-Ip`, `Eo-Connecting-Ip`, `X-Real-IP`, then XFF; a valid
-higher-priority header bypasses XFF resolution. Trusted proxies must strip or overwrite those
-headers as well. `xForwardedForMode` only controls the outgoing header. `append` retains
+higher-priority header bypasses XFF resolution, except a private or link-local `X-Real-IP`.
+That skip covers loopback, RFC 1918, IPv6 unique-local, and link-local unicast and multicast,
+including IPv4-mapped forms of those addresses. It does not cover other non-routable space such
+as `100.64.0.0/10`. Resolution then continues with XFF, or uses the socket peer when XFF is
+absent. `Cf-Connecting-Ip` and `Eo-Connecting-Ip` are accepted even when the address is private.
+Trusted proxies must strip or overwrite those headers as well. `xForwardedForMode` only controls
+the outgoing header. `append` retains
 incoming entries, including an untrusted prefix; downstream consumers must not treat every
 retained entry as authoritative. Use `replace` when a downstream consumer requires a single
 resolved client address.
@@ -233,6 +239,9 @@ where each listener has a known kind of peer:
 | `Eo-Connecting-Ip` | EdgeOne ranges (`thrustEdgeOne`) |
 | `X-Real-IP`, `X-Forwarded-For` | `forwardedTrustedIPs` |
 
+A private or link-local `X-Real-IP` from a forwarded peer is skipped, as in the default mode.
+Resolution then uses `X-Forwarded-For`, or the socket peer when that header is absent.
+
 Every other peer is its own client address. After resolution the plugin removes every identity
 assertion (`Cf-Connecting-Ip`, `Cf-Connecting-Ipv6`, `Cf-Pseudo-Ipv4`, `Eo-Connecting-Ip`,
 `True-Client-Ip`, `X-Client-Ip`, `X-Cluster-Client-Ip`, `X-Original-Forwarded-For`,
@@ -257,11 +266,13 @@ http:
           cloudflareAuthSecretFile: /etc/traefik/secrets/EDGE_AUTH
 ```
 
-When `cloudflareAuthHeader` is set, a request from a Cloudflare peer without a valid secret and a
-`Cf-Connecting-Ip` header is refused with `403`. The file may hold two non-empty lines (current
-and previous secret, each at least 16 bytes) so rotation has no gap; it is re-read within ten
-seconds of changing. A missing or invalid file does not stop the middleware from loading: requests
-that need the secret are refused and the error is logged, while other peers are unaffected.
+When `cloudflareAuthHeader` is set, a Cloudflare peer is refused with `403` unless the request
+carries exactly one matching secret and a `Cf-Connecting-Ip` header. A valid secret without that
+header is also refused. Peers outside the Cloudflare ranges are unaffected, including when the
+secret file is missing or invalid. The file may hold two non-empty lines (current and previous
+secret, each at least 16 bytes) so rotation has no gap; it is re-read within ten seconds of
+changing. A missing or invalid file does not stop the middleware from loading: requests that need
+the secret are refused and the error is logged.
 
 Scoped mode trusts addresses, not connections. Pair each listener with network controls that
 guarantee which peers can reach it.
@@ -293,7 +304,7 @@ A Docker Compose setup is provided in the `testing` folder to test the plugin lo
 
 ```bash
 cd testing
-docker-compose up -d
+docker compose up -d
 ```
 
 ### Running Tests

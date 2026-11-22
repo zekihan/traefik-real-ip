@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -321,6 +322,72 @@ func TestScopedForwardedTrust(t *testing.T) {
 	})
 }
 
+func TestScopedForwardedPrivateAndInvalidHeaders(t *testing.T) {
+	handler := newScoped(t, func(cfg *traefikrealip.Config) {
+		cfg.ForwardedTrustedIPs = []string{"10.0.0.0/8"}
+	})
+
+	runScoped(t, handler, &scopedCase{
+		desc:   "private X-Real-IP falls through to X-Forwarded-For",
+		remote: "10.1.1.1",
+		status: okStatus,
+		headers: map[string][]string{
+			"X-Real-Ip":       {"192.168.1.9"},
+			"X-Forwarded-For": {"203.0.113.10, 10.2.2.2"},
+		},
+		expected: map[string]string{
+			"X-Real-Ip": "203.0.113.10", "X-Forwarded-For": "203.0.113.10",
+		},
+		absent: nil,
+	})
+	runScoped(t, handler, &scopedCase{
+		desc:   "private X-Real-IP alone uses the socket peer",
+		remote: "10.1.1.1",
+		status: okStatus,
+		headers: map[string][]string{
+			"X-Real-Ip": {"fd00::10"},
+		},
+		expected: map[string]string{"X-Real-Ip": "10.1.1.1", "X-Forwarded-For": "10.1.1.1"},
+		absent:   nil,
+	})
+	runScoped(t, handler, &scopedCase{
+		desc: "no identity headers", remote: "10.1.1.1", status: okStatus,
+		headers:  nil,
+		expected: map[string]string{"X-Real-Ip": "10.1.1.1", "X-Forwarded-For": "10.1.1.1"},
+		absent:   nil,
+	})
+	runScoped(t, handler, &scopedCase{
+		desc: "invalid X-Real-IP", remote: "10.1.1.1", status: badRequest,
+		headers:  map[string][]string{"X-Real-Ip": {"not-an-ip"}},
+		expected: nil, absent: nil,
+	})
+	runScoped(t, handler, &scopedCase{
+		desc: "invalid X-Forwarded-For", remote: "10.1.1.1", status: badRequest,
+		headers:  map[string][]string{"X-Forwarded-For": {"203.0.113.10, nope"}},
+		expected: nil, absent: nil,
+	})
+	runScoped(t, handler, &scopedCase{
+		desc:   "private X-Real-IP then invalid X-Forwarded-For",
+		remote: "10.1.1.1",
+		status: badRequest,
+		headers: map[string][]string{
+			"X-Real-Ip":       {"192.168.1.9"},
+			"X-Forwarded-For": {"203.0.113.10, nope"},
+		},
+		expected: nil,
+		absent:   nil,
+	})
+}
+
+func TestScopedInvalidSourceIP(t *testing.T) {
+	handler := newScoped(t, nil)
+
+	runScoped(t, handler, &scopedCase{
+		desc: "unparsed peer", remote: "not-an-ip", status: badRequest,
+		headers: nil, expected: nil, absent: nil,
+	})
+}
+
 func TestScopedMissingSecretFailsClosedPerRequest(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "absent")
 	handler := newScoped(t, func(cfg *traefikrealip.Config) {
@@ -464,6 +531,7 @@ func TestScopedRejectsShortOrExtraSecrets(t *testing.T) {
 		"short":       "tooshort",
 		"three":       edgeSecret + "\n" + edgeSecret2 + "\nthird-secret-0123456789",
 		"empty lines": "\n\n",
+		"too large":   strings.Repeat("a", 4097),
 	} {
 		path := writeSecret(t, content)
 		handler := newScoped(t, func(cfg *traefikrealip.Config) {

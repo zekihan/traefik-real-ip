@@ -9,11 +9,14 @@ import (
 	"strings"
 )
 
+// PluginLogger writes this middleware's logs and tags each record with the plugin name.
 type PluginLogger struct {
 	logger     *slog.Logger
 	pluginName string
 }
 
+// NewPluginLogger writes text logs to stdout. An empty level is info. An unknown
+// level is also info, and that choice is reported at warn.
 func NewPluginLogger(ctx context.Context, pluginName, logLevelStr string) *PluginLogger {
 	logLevel := slog.LevelInfo
 	invalidLevel := false
@@ -95,16 +98,8 @@ func ErrorAttrWithoutStack(val any) slog.Attr {
 	)
 }
 
-// Log emits a log record with the current time and the given level and message.
-// The Record's Attrs consist of the Logger's attributes followed by
-// the Attrs specified by args.
-//
-// The attribute arguments are processed as follows:
-//   - If an argument is an Attr, it is used as is.
-//   - If an argument is a string and this is not the last argument,
-//     the following argument is treated as the value and the two are combined
-//     into an Attr.
-//   - Otherwise, the argument is treated as a value with key "!BADKEY".
+// Log writes msg at level and appends a plugin attribute. Attribute arguments are
+// passed through to slog.
 func (l *PluginLogger) Log(ctx context.Context, level slog.Level, msg string, args ...any) {
 	args = append(args, slog.String("plugin", l.pluginName))
 	l.logger.Log(ctx, level, msg, args...)
