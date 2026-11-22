@@ -22,7 +22,7 @@ var (
 const (
 	defaultRemoteProviderTimeout = 2 * time.Second
 	maxRetries                   = 5
-	initialRetryDelay            = 2 * time.Second
+	retryDelay                   = 2 * time.Second
 	// Limits apply to decoded responses, including automatically decompressed HTTP bodies.
 	maxRemoteProviderBytes     = 1 << 20
 	maxRemoteProviderLineBytes = 4096
@@ -200,7 +200,7 @@ func (resolver *IPResolver) fetchCIDRsWithRetry(
 
 	for attempt := 0; attempt <= maxRetries; attempt++ {
 		if attempt > 0 {
-			delay := initialRetryDelay
+			delay := retryDelay
 			resolver.logger.InfoContext(
 				ctx,
 				"Retrying request",

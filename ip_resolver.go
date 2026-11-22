@@ -11,13 +11,11 @@ import (
 )
 
 var (
-	ErrXForwardedForInvalid      = errors.New("header X-Forwarded-For invalid")
-	ErrNoValidIPInXForwardedFor  = errors.New("no valid IP found in X-Forwarded-For")
-	ErrNoPublicIPInXForwardedFor = errors.New("no public IP found in X-Forwarded-For")
-	ErrInvalidIPFormat           = errors.New("invalid IP format")
-	ErrXRealIPInvalid            = errors.New("header X-Real-IP invalid")
-	ErrCfConnectingIPInvalid     = errors.New("header Cf-Connecting-Ip not found or invalid")
-	ErrEoConnectingIPInvalid     = errors.New("header Eo-Connecting-Ip not found or invalid")
+	ErrXForwardedForInvalid  = errors.New("header X-Forwarded-For invalid")
+	ErrInvalidIPFormat       = errors.New("invalid IP format")
+	ErrXRealIPInvalid        = errors.New("header X-Real-IP invalid")
+	ErrCfConnectingIPInvalid = errors.New("header Cf-Connecting-Ip not found or invalid")
+	ErrEoConnectingIPInvalid = errors.New("header Eo-Connecting-Ip not found or invalid")
 )
 
 const (
