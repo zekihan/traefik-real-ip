@@ -101,25 +101,9 @@ wait_for_response() {
 }
 
 cleanup || true
+cd "${PROJECT_ROOT}/${COMPOSE_DIR}"
 
-docker network create traefik-real-ip_proxy || true
-docker network create traefik-real-ip_default || true
-
-docker run -d \
-    --name traefik-real-ip_traefik \
-    --network traefik-real-ip_proxy \
-    --network traefik-real-ip_default \
-    -p 4008:80 \
-    -v "${PROJECT_ROOT}/${COMPOSE_DIR}"/traefik.yaml:/etc/traefik/traefik.yaml \
-    -v "${PROJECT_ROOT}/${COMPOSE_DIR}"/config:/etc/traefik/mconfig \
-    -v "${PROJECT_ROOT}":/plugins-local/src/github.com/zekihan/traefik-real-ip:ro \
-    -v /var/run/docker.sock:/var/run/docker.sock:ro \
-    -v /etc/localtime:/etc/localtime:ro \
-    --health-cmd="traefik healthcheck | grep OK" \
-    --health-interval=1s \
-    --health-timeout=3s \
-    --health-retries=5 \
-    docker.io/traefik:v3.6.5@sha256:4ec25d36f3203240bc1631bb43954c61e872331ab693e741398f1dde6974c145
+docker compose -f docker-compose.yaml up -d traefik whoami
 
 wait_for_services "traefik-real-ip_traefik"
 
@@ -135,21 +119,6 @@ docker run -d \
 docker network connect traefik-real-ip_default "${SCRIPTS_CONTAINER_NAME}" || true
 
 wait_for_services "${SCRIPTS_CONTAINER_NAME}"
-
-docker run -d \
-    --name traefik-real-ip_whoami \
-    --network traefik-real-ip_proxy \
-    -v /etc/localtime:/etc/localtime:ro \
-    --label "traefik.http.services.traefik-real-ip_whoami.loadbalancer.server.port=80" \
-    --label "traefik.http.services.traefik-real-ip_whoami.loadbalancer.server.scheme=http" \
-    --label "traefik.http.services.traefik-real-ip_whoami.loadbalancer.passhostheader=true" \
-    --label "traefik.http.routers.traefik-real-ip_whoami.service=traefik-real-ip_whoami" \
-    --label "traefik.http.routers.traefik-real-ip_whoami.middlewares=standard@file" \
-    --label "traefik.http.routers.traefik-real-ip_whoami.rule=Method(\`GET\`)" \
-    --label "traefik.http.routers.traefik-real-ip_whoami.entrypoints=web" \
-    --label "traefik.enable=true" \
-    --label "traefik-real-ip.enable=true" \
-    docker.io/traefik/whoami:v1.11.0@sha256:200689790a0a0ea48ca45992e0450bc26ccab5307375b41c84dfc4f2475937ab
 
 wait_for_services "traefik-real-ip_whoami"
 
