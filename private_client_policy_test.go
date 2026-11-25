@@ -159,9 +159,9 @@ func TestPrivateClientTrustPolicy(t *testing.T) {
 			cfg := CreateConfig()
 			// Broad-trust cases match the existing middleware policy; providers use offline
 			// fixtures.
-			cfg.ThrustCloudFlare = tt.trustLocal
-			cfg.ThrustEdgeOne = false
-			cfg.ThrustLocal = tt.trustLocal
+			cfg.TrustCloudFlare = tt.trustLocal
+			cfg.TrustEdgeOne = false
+			cfg.TrustLocal = tt.trustLocal
 
 			cfg.TrustedIPs = append([]string{}, tt.proxyCIDRs...)
 			if !tt.trustLocal {

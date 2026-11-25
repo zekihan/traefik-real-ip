@@ -401,7 +401,7 @@ func newScopedResolver(
 		return nil, err
 	}
 
-	if config.ThrustCloudFlare {
+	if configTrustCloudFlare(config) {
 		ips, err := resolver.getCloudFlareIPs(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("%w: %w", ErrGettingCloudflareIPs, err)
@@ -410,7 +410,7 @@ func newScopedResolver(
 		trust.cloudflare = append(trust.cloudflare, ips...)
 	}
 
-	if config.ThrustEdgeOne {
+	if configTrustEdgeOne(config) {
 		ips, err := resolver.getEdgeOneIPs(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("%w: %w", ErrGettingEdgeOneIPs, err)

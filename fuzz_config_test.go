@@ -273,8 +273,8 @@ func FuzzConfigCIDRs(f *testing.F) {
 
 		cfg := CreateConfig()
 		cfg.LogLevel = LogLevelError
-		cfg.ThrustCloudFlare = false
-		cfg.ThrustLocal = false
+		cfg.TrustCloudFlare = false
+		cfg.TrustLocal = false
 		cfg.ScopedTrust = scoped
 		cfg.XForwardedForMode = mode
 		cfg.PanicPolicy = policy

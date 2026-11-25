@@ -123,9 +123,9 @@ func TestForwardedIdentityThroughMiddleware(t *testing.T) {
 
 func TestAppendXForwardedForDeduplicatesResolvedIP(t *testing.T) {
 	cfg := CreateConfig()
-	cfg.ThrustLocal = false
-	cfg.ThrustCloudFlare = false
-	cfg.ThrustEdgeOne = false
+	cfg.TrustLocal = false
+	cfg.TrustCloudFlare = false
+	cfg.TrustEdgeOne = false
 	cfg.TrustedIPs = []string{"192.0.2.0/24"}
 	next := http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) {
 		rw.WriteHeader(http.StatusNoContent)

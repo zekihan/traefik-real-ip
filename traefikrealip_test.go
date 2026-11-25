@@ -38,7 +38,7 @@ func setupTestWithConfig(
 	t.Helper()
 
 	// Header handling tests use fixed provider data; provider fetching is tested separately.
-	cfg.ThrustCloudFlare = false
+	cfg.TrustCloudFlare = false
 
 	cfg.TrustedIPs = append([]string{}, test.trustedIPs...)
 
@@ -630,9 +630,9 @@ func TestIPResolver_InvalidHeaders(t *testing.T) {
 
 func TestNew_InvalidTrustedIPCIDR(t *testing.T) {
 	cfg := traefikrealip.CreateConfig()
-	cfg.ThrustLocal = false
-	cfg.ThrustCloudFlare = false
-	cfg.ThrustEdgeOne = false
+	cfg.TrustLocal = false
+	cfg.TrustCloudFlare = false
+	cfg.TrustEdgeOne = false
 	cfg.TrustedIPs = []string{"not-a-cidr"}
 	ctx := t.Context()
 	next := http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {})
@@ -645,9 +645,9 @@ func TestNew_InvalidTrustedIPCIDR(t *testing.T) {
 
 func TestNew_InvalidXForwardedForMode(t *testing.T) {
 	cfg := traefikrealip.CreateConfig()
-	cfg.ThrustLocal = false
-	cfg.ThrustCloudFlare = false
-	cfg.ThrustEdgeOne = false
+	cfg.TrustLocal = false
+	cfg.TrustCloudFlare = false
+	cfg.TrustEdgeOne = false
 	cfg.XForwardedForMode = "invalid"
 	ctx := t.Context()
 	next := http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {})
@@ -660,9 +660,9 @@ func TestNew_InvalidXForwardedForMode(t *testing.T) {
 
 func TestIPResolver_InvalidRemoteAddr(t *testing.T) {
 	cfg := traefikrealip.CreateConfig()
-	cfg.ThrustLocal = false
-	cfg.ThrustCloudFlare = false
-	cfg.ThrustEdgeOne = false
+	cfg.TrustLocal = false
+	cfg.TrustCloudFlare = false
+	cfg.TrustEdgeOne = false
 	ctx := t.Context()
 	next := http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {})
 

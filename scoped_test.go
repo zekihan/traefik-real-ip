@@ -60,7 +60,7 @@ func newScoped(t *testing.T, mutate func(*traefikrealip.Config)) http.Handler {
 
 	cfg := traefikrealip.CreateConfig()
 	cfg.ScopedTrust = true
-	cfg.ThrustCloudFlare = false
+	cfg.TrustCloudFlare = false
 	cfg.XForwardedForMode = traefikrealip.XForwardedForModeReplace
 
 	if mutate != nil {
@@ -246,7 +246,7 @@ func TestScopedCloudflaredWithEdgeSecret(t *testing.T) {
 
 // Cloudflare ranges grant Cf-Connecting-Ip only, never X-Real-IP or X-Forwarded-For.
 func TestScopedCloudflareRangesOnlyGrantCfHeader(t *testing.T) {
-	handler := newScoped(t, func(cfg *traefikrealip.Config) { cfg.ThrustCloudFlare = true })
+	handler := newScoped(t, func(cfg *traefikrealip.Config) { cfg.TrustCloudFlare = true })
 
 	runScoped(t, handler, &scopedCase{
 		desc: "cf edge with header", remote: cfEdgeIPv6, status: okStatus,
@@ -273,7 +273,7 @@ func TestScopedCloudflareRangesOnlyGrantCfHeader(t *testing.T) {
 func TestScopedCloudflareRangesRequireSecret(t *testing.T) {
 	path := writeSecret(t, edgeSecret)
 	handler := newScoped(t, func(cfg *traefikrealip.Config) {
-		cfg.ThrustCloudFlare = true
+		cfg.TrustCloudFlare = true
 		cfg.CloudflareAuthHeader = edgeHeader
 		cfg.CloudflareAuthSecretFile = path
 	})
@@ -474,7 +474,7 @@ func TestScopedConfigErrors(t *testing.T) {
 	} {
 		cfg := traefikrealip.CreateConfig()
 		cfg.ScopedTrust = true
-		cfg.ThrustCloudFlare = false
+		cfg.TrustCloudFlare = false
 		mutate(cfg)
 
 		_, err := traefikrealip.New(t.Context(), http.NotFoundHandler(), cfg, "scoped")
@@ -491,7 +491,7 @@ func TestScopedEdgeAuthHeaderName(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			cfg := traefikrealip.CreateConfig()
 			cfg.ScopedTrust = true
-			cfg.ThrustCloudFlare = false
+			cfg.TrustCloudFlare = false
 			cfg.CloudflareTrustedIPs = []string{podCIDRv4}
 			cfg.CloudflareAuthHeader = name
 			cfg.CloudflareAuthSecretFile = path
