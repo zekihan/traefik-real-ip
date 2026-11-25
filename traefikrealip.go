@@ -35,38 +35,38 @@ const (
 
 // Config the plugin configuration.
 type Config struct {
-	LogLevel          string `json:"logLevel,omitempty"`
-	PanicPolicy       string `json:"panicPolicy,omitempty"`
-	XForwardedForMode string `json:"xForwardedForMode,omitempty"`
-	// CloudflareAuthHeader names the header carrying the edge secret read from
-	// CloudflareAuthSecretFile (scoped mode only).
-	CloudflareAuthHeader     string `json:"cloudflareAuthHeader,omitempty"`
-	CloudflareAuthSecretFile string `json:"cloudflareAuthSecretFile,omitempty"`
-	// ForwardedTrustedIPs and CloudflareTrustedIPs are the scoped-mode peer sets for
-	// X-Real-IP/X-Forwarded-For and Cf-Connecting-Ip respectively.
-	ForwardedTrustedIPs  []string `json:"forwardedTrustedIPs,omitempty"`
-	CloudflareTrustedIPs []string `json:"cloudflareTrustedIPs,omitempty"`
-	TrustedIPs           []string `json:"trustedIPs,omitempty"`
-	ThrustLocal          bool     `json:"thrustLocal,omitempty"`
-	ThrustCloudFlare     bool     `json:"thrustCloudFlare,omitempty"`
-	ThrustEdgeOne        bool     `json:"thrustEdgeOne,omitempty"`
-	DenyUntrusted        bool     `json:"denyUntrusted,omitempty"`
-	// ScopedTrust grants each identity header only to the peers allowed to send it and
-	// strips every other identity header. See README "Scoped trust".
-	ScopedTrust bool `json:"scopedTrust,omitempty"`
+	LegacyThrustLocal        *bool    `json:"thrustLocal,omitempty"              mapstructure:"thrustLocal"`
+	LegacyThrustEdgeOne      *bool    `json:"thrustEdgeOne,omitempty"            mapstructure:"thrustEdgeOne"`
+	LegacyThrustCloudFlare   *bool    `json:"thrustCloudFlare,omitempty"         mapstructure:"thrustCloudFlare"`
+	CloudflareAuthSecretFile string   `json:"cloudflareAuthSecretFile,omitempty"`
+	LogLevel                 string   `json:"logLevel,omitempty"`
+	CloudflareAuthHeader     string   `json:"cloudflareAuthHeader,omitempty"`
+	XForwardedForMode        string   `json:"xForwardedForMode,omitempty"`
+	PanicPolicy              string   `json:"panicPolicy,omitempty"`
+	ForwardedTrustedIPs      []string `json:"forwardedTrustedIPs,omitempty"`
+	CloudflareTrustedIPs     []string `json:"cloudflareTrustedIPs,omitempty"`
+	TrustedIPs               []string `json:"trustedIPs,omitempty"`
+	TrustLocal               bool     `json:"trustLocal,omitempty"               mapstructure:"trustLocal"`
+	TrustCloudFlare          bool     `json:"trustCloudFlare,omitempty"          mapstructure:"trustCloudFlare"`
+	TrustEdgeOne             bool     `json:"trustEdgeOne,omitempty"             mapstructure:"trustEdgeOne"`
+	DenyUntrusted            bool     `json:"denyUntrusted,omitempty"`
+	ScopedTrust              bool     `json:"scopedTrust,omitempty"`
 }
 
 // CreateConfig creates the default plugin configuration.
 func CreateConfig() *Config {
 	return &Config{
-		ThrustLocal:       true,
-		ThrustCloudFlare:  true,
-		ThrustEdgeOne:     false,
-		TrustedIPs:        make([]string, 0),
-		LogLevel:          "info",
-		PanicPolicy:       PanicPolicyLegacyRetry,
-		DenyUntrusted:     false,
-		XForwardedForMode: XForwardedForModeAppend,
+		TrustLocal:             true,
+		TrustCloudFlare:        true,
+		TrustEdgeOne:           false,
+		LegacyThrustLocal:      nil,
+		LegacyThrustCloudFlare: nil,
+		LegacyThrustEdgeOne:    nil,
+		TrustedIPs:             make([]string, 0),
+		LogLevel:               "info",
+		PanicPolicy:            PanicPolicyLegacyRetry,
+		DenyUntrusted:          false,
+		XForwardedForMode:      XForwardedForModeAppend,
 
 		ScopedTrust:              false,
 		ForwardedTrustedIPs:      make([]string, 0),
@@ -74,6 +74,35 @@ func CreateConfig() *Config {
 		CloudflareAuthHeader:     "",
 		CloudflareAuthSecretFile: "",
 	}
+}
+
+func configTrustLocal(config *Config) bool {
+	if config.LegacyThrustLocal != nil {
+		return *config.LegacyThrustLocal
+	}
+
+	return config.TrustLocal
+}
+
+func configTrustCloudFlare(config *Config) bool {
+	if config.LegacyThrustCloudFlare != nil {
+		return *config.LegacyThrustCloudFlare
+	}
+
+	return config.TrustCloudFlare
+}
+
+func configTrustEdgeOne(config *Config) bool {
+	if config.LegacyThrustEdgeOne != nil {
+		return *config.LegacyThrustEdgeOne
+	}
+
+	return config.TrustEdgeOne
+}
+
+func hasDeprecatedTrustKeys(config *Config) bool {
+	return config.LegacyThrustLocal != nil || config.LegacyThrustCloudFlare != nil ||
+		config.LegacyThrustEdgeOne != nil
 }
 
 func validateConfig(config *Config) error {
@@ -123,7 +152,11 @@ func New(
 	}
 
 	pluginLogger := NewPluginLogger(ctx, name, config.LogLevel)
+
 	ipResolver.logger = pluginLogger
+	if hasDeprecatedTrustKeys(config) {
+		pluginLogger.WarnContext(ctx, "thrust* configuration keys are deprecated; use trust* keys")
+	}
 
 	if config.ScopedTrust {
 		return newScopedResolver(ctx, ipResolver, config)
@@ -143,7 +176,7 @@ func New(
 	results := sync.Map{}
 	errWg, errCtx := errgroup.WithContext(ctx)
 
-	if config.ThrustLocal {
+	if configTrustLocal(config) {
 		errWg.Go(func() error {
 			ips := ipResolver.getLocalIPs(errCtx)
 			ipResolver.logTrustedIPFetchResult(errCtx, "local", len(ips))
@@ -153,7 +186,7 @@ func New(
 		})
 	}
 
-	if config.ThrustCloudFlare {
+	if configTrustCloudFlare(config) {
 		errWg.Go(func() error {
 			ips, err := ipResolver.getCloudFlareIPs(errCtx)
 			if err != nil {
@@ -167,7 +200,7 @@ func New(
 		})
 	}
 
-	if config.ThrustEdgeOne {
+	if configTrustEdgeOne(config) {
 		errWg.Go(func() error {
 			ips, err := ipResolver.getEdgeOneIPs(errCtx)
 			if err != nil {

@@ -120,7 +120,7 @@ func newScopedFixture(f *testing.F) *scopedFixture {
 
 		cfg := CreateConfig()
 		cfg.ScopedTrust = true
-		cfg.ThrustCloudFlare = false
+		cfg.TrustCloudFlare = false
 		cfg.LogLevel = LogLevelError
 		cfg.CloudflareTrustedIPs = cloudflare
 		cfg.ForwardedTrustedIPs = forwarded

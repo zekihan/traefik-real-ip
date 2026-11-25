@@ -3,8 +3,8 @@ http:
     traefik-real-ip:
       plugin:
         traefik-real-ip:
-          thrustLocal: true
-          thrustCloudFlare: true
-          thrustEdgeOne: true
+          trustLocal: true
+          trustCloudFlare: true
+          trustEdgeOne: true
           trustedIPs: [ ]
           logLevel: debug

@@ -29,9 +29,9 @@ func TestNew_EmptyEdgeOneProviderRecovers(t *testing.T) {
 	t.Cleanup(func() { edgeOneProvider = originalProvider })
 
 	cfg := CreateConfig()
-	cfg.ThrustLocal = false
-	cfg.ThrustCloudFlare = false
-	cfg.ThrustEdgeOne = true
+	cfg.TrustLocal = false
+	cfg.TrustCloudFlare = false
+	cfg.TrustEdgeOne = true
 	cfg.DenyUntrusted = true
 
 	handler, err := New(t.Context(), http.NotFoundHandler(), cfg, "test")
@@ -77,8 +77,8 @@ func TestNew_PartialCloudflareProviderRecovers(t *testing.T) {
 	useCloudflareTestFeeds(t, server.URL+"/v4", server.URL+"/v6")
 
 	cfg := CreateConfig()
-	cfg.ThrustLocal = false
-	cfg.ThrustCloudFlare = true
+	cfg.TrustLocal = false
+	cfg.TrustCloudFlare = true
 	cfg.DenyUntrusted = true
 
 	handler, err := New(t.Context(), http.NotFoundHandler(), cfg, "test")
@@ -140,7 +140,7 @@ func TestNew_CloudflareProviderRejectsWrongAddressFamily(t *testing.T) {
 			useCloudflareTestFeeds(t, server.URL+"/v4", server.URL+"/v6")
 
 			cfg := CreateConfig()
-			cfg.ThrustLocal = false
+			cfg.TrustLocal = false
 			cfg.DenyUntrusted = true
 
 			handler, err := New(t.Context(), http.NotFoundHandler(), cfg, "test")
@@ -277,9 +277,9 @@ func TestNew_ScopedEdgeOneIgnoresOtherHeaders(t *testing.T) {
 func scopedEdgeOneConfig() *Config {
 	cfg := CreateConfig()
 	cfg.ScopedTrust = true
-	cfg.ThrustLocal = false
-	cfg.ThrustCloudFlare = false
-	cfg.ThrustEdgeOne = true
+	cfg.TrustLocal = false
+	cfg.TrustCloudFlare = false
+	cfg.TrustEdgeOne = true
 
 	return cfg
 }
@@ -338,9 +338,9 @@ func TestNew_ScopedCloudflareFeedFailure(t *testing.T) {
 
 	cfg := CreateConfig()
 	cfg.ScopedTrust = true
-	cfg.ThrustLocal = false
-	cfg.ThrustCloudFlare = true
-	cfg.ThrustEdgeOne = false
+	cfg.TrustLocal = false
+	cfg.TrustCloudFlare = true
+	cfg.TrustEdgeOne = false
 
 	handler, err := New(t.Context(), http.NotFoundHandler(), cfg, "scoped-cloudflare")
 	if handler != nil || !errors.Is(err, ErrGettingCloudflareIPs) {
@@ -374,9 +374,9 @@ func TestNew_MappedDefaultRouteRejected(t *testing.T) {
 	t.Cleanup(func() { edgeOneProvider = originalProvider })
 
 	cfg := CreateConfig()
-	cfg.ThrustLocal = false
-	cfg.ThrustCloudFlare = false
-	cfg.ThrustEdgeOne = true
+	cfg.TrustLocal = false
+	cfg.TrustCloudFlare = false
+	cfg.TrustEdgeOne = true
 	cfg.DenyUntrusted = true
 
 	var assertedIP string

@@ -63,9 +63,9 @@ http:
     traefik-real-ip:
       plugin:
         traefik-real-ip:
-          thrustLocal: true
-          thrustCloudFlare: true
-          thrustEdgeOne: false
+          trustLocal: true
+          trustCloudFlare: true
+          trustEdgeOne: false
           trustedIPs:
             - "1.2.3.4/32"
             - "10.0.0.0/8"
@@ -78,9 +78,9 @@ http:
 
 | Option              | Type             | Default  | Description                                                                                                 |
 |---------------------|------------------|----------|-------------------------------------------------------------------------------------------------------------|
-| `thrustLocal`       | boolean          | `true`   | Trust local and private IP ranges                                                                           |
-| `thrustCloudFlare`  | boolean          | `true`   | Trust Cloudflare IP ranges                                                                                  |
-| `thrustEdgeOne`     | boolean          | `false`  | Trust EdgeOne IP ranges                                                                                     |
+| `trustLocal`       | boolean          | `true`   | Trust local and private IP ranges                                                                           |
+| `trustCloudFlare`  | boolean          | `true`   | Trust Cloudflare IP ranges                                                                                  |
+| `trustEdgeOne`     | boolean          | `false`  | Trust EdgeOne IP ranges                                                                                     |
 | `trustedIPs`        | array of strings | `[]`     | Additional IP ranges to trust in CIDR notation                                                              |
 | `logLevel`          | string           | `info`   | Log level (debug, info, warn, error)                                                                        |
 | `denyUntrusted`     | boolean          | `false`  | Deny requests from untrusted IPs with 403 Forbidden                                                         |
@@ -91,6 +91,9 @@ http:
 | `cloudflareTrustedIPs` | array of strings | `[]`  | Scoped mode: extra peers (for example `cloudflared`) allowed to send `Cf-Connecting-Ip`                     |
 | `cloudflareAuthHeader` | string          | `""`   | Scoped mode: header carrying the Cloudflare edge secret                                                     |
 | `cloudflareAuthSecretFile` | string      | `""`   | Scoped mode: file holding the edge secret (one per line, current and previous)                              |
+
+The former `thrustLocal`, `thrustCloudFlare`, and `thrustEdgeOne` keys remain accepted for compatibility and emit a
+deprecation warning. Use the `trust*` spellings for new configurations.
 
 Remote providers must return valid, nonempty CIDR lists from every required URL before the plugin can initialize.
 Each Cloudflare feed must contain only ranges for its advertised address family.
@@ -164,7 +167,7 @@ the first untrusted hop from the right. Malformed entries are never silently dro
 
 Trust only proxy ranges controlled by your deployment. Every trusted proxy must remove or
 sanitize client-supplied identity headers and accurately append its observed upstream peer to
-XFF (or replace the chain with a verified client address). The existing `thrustLocal` default
+XFF (or replace the chain with a verified client address). The existing `trustLocal` default
 trusts broad private ranges; operators must review whether those ranges contain untrusted
 clients. No trust configuration is changed automatically.
 
@@ -188,15 +191,15 @@ and do not include stack traces. Single-address identity headers are limited to 
 
 A trusted address means **authorized to assert another host's identity**, not simply permitted
 to connect. The plugin cannot distinguish a private client from a private proxy by address
-syntax. `thrustLocal: true` includes RFC1918, loopback, IPv6 unique-local and link-local
+syntax. `trustLocal: true` includes RFC1918, loopback, IPv6 unique-local and link-local
 ranges. The defaults are unchanged: trusting these networks intentionally allows hosts within
 them to assert client identity.
 
 An existing middleware configuration illustrates this private-network preference:
 
 ```yaml
-thrustLocal: true
-thrustCloudFlare: true
+trustLocal: true
+trustCloudFlare: true
 trustedIPs: []
 xForwardedForMode: append
 ```
@@ -214,7 +217,7 @@ untrusted hop from the right. This is the authority granted by broad private-net
 By contrast, `10.99.0.66, 203.0.113.10, 10.0.0.2` resolves to `203.0.113.10`; the
 untrusted boundary prevents a further-left prefix from overriding it.
 
-Operators who prefer to separate clients from proxies can evaluate `thrustLocal: false` and
+Operators who prefer to separate clients from proxies can evaluate `trustLocal: false` and
 trust only verified proxy hosts or dedicated proxy subnets in an isolated environment. With
 only `10.0.0.1/32` and `10.0.0.2/32` trusted, the chain
 `203.0.113.66, 10.20.0.10, 10.0.0.2` resolves to private client `10.20.0.10`. The equivalent
@@ -235,8 +238,8 @@ where each listener has a known kind of peer:
 
 | Header | Accepted only from |
 |---|---|
-| `Cf-Connecting-Ip` | Cloudflare ranges (`thrustCloudFlare`) or `cloudflareTrustedIPs`, and with a valid edge secret when `cloudflareAuthHeader` is set |
-| `Eo-Connecting-Ip` | EdgeOne ranges (`thrustEdgeOne`) |
+| `Cf-Connecting-Ip` | Cloudflare ranges (`trustCloudFlare`) or `cloudflareTrustedIPs`, and with a valid edge secret when `cloudflareAuthHeader` is set |
+| `Eo-Connecting-Ip` | EdgeOne ranges (`trustEdgeOne`) |
 | `X-Real-IP`, `X-Forwarded-For` | `forwardedTrustedIPs` |
 
 A private or link-local `X-Real-IP` from a forwarded peer is skipped, as in the default mode.
@@ -246,7 +249,7 @@ Every other peer is its own client address. After resolution the plugin removes 
 assertion (`Cf-Connecting-Ip`, `Cf-Connecting-Ipv6`, `Cf-Pseudo-Ipv4`, `Eo-Connecting-Ip`,
 `True-Client-Ip`, `X-Client-Ip`, `X-Cluster-Client-Ip`, `X-Original-Forwarded-For`,
 `Fastly-Client-Ip`, `Forwarded`, `X-Is-Trusted` and the edge-secret header) and writes the
-resolved address as the only `X-Real-IP` and `X-Forwarded-For` value. `thrustLocal` is ignored
+resolved address as the only `X-Real-IP` and `X-Forwarded-For` value. `trustLocal` is ignored
 and `trustedIPs` is rejected in this mode.
 
 Cloudflare publishes one set of edge addresses for all customers, so any Cloudflare zone can send
@@ -260,7 +263,7 @@ http:
       plugin:
         traefik-real-ip:
           scopedTrust: true
-          thrustCloudFlare: false
+          trustCloudFlare: false
           cloudflareTrustedIPs: ["10.42.0.0/16"] # cloudflared pods
           cloudflareAuthHeader: X-Edge-Auth
           cloudflareAuthSecretFile: /etc/traefik/secrets/EDGE_AUTH
@@ -289,7 +292,7 @@ http:
     traefik-real-ip:
       plugin:
         traefik-real-ip:
-          thrustCloudFlare: true
+          trustCloudFlare: true
           denyUntrusted: true
 ```
 

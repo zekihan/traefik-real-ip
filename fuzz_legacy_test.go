@@ -109,8 +109,8 @@ func (input *legacyInput) config(cloudflare []string) (*Config, []string) {
 
 	cfg := CreateConfig()
 	cfg.LogLevel = LogLevelError
-	cfg.ThrustCloudFlare = false
-	cfg.ThrustLocal = input.has(legacyTrustLocal)
+	cfg.TrustCloudFlare = false
+	cfg.TrustLocal = input.has(legacyTrustLocal)
 	cfg.TrustedIPs = cidrs
 	cfg.DenyUntrusted = input.has(legacyDeny)
 
@@ -594,7 +594,7 @@ func serveRaw(
 
 	cfg := CreateConfig()
 	cfg.LogLevel = LogLevelError
-	cfg.ThrustCloudFlare = false
+	cfg.TrustCloudFlare = false
 
 	cfg.TrustedIPs = append(append([]string{}, rawTrustedCIDRs...), cloudflare...)
 

@@ -137,8 +137,8 @@ func checkProviderRecoveryWithPanic(t *testing.T, policy string, panicValue erro
 	cfg := new(Config)
 	cfg.PanicPolicy = policy
 	cfg.LogLevel = LogLevelError
-	cfg.ThrustCloudFlare = true
-	cfg.ThrustEdgeOne = true
+	cfg.TrustCloudFlare = true
+	cfg.TrustEdgeOne = true
 	cfg.DenyUntrusted = true
 
 	calls := 0

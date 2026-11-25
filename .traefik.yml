@@ -5,9 +5,9 @@ summary: Extracts the real client IP address from various HTTP headers.
 #iconPath: public/icon.png
 #bannerPath: public/banner.png
 testData:
-  thrustLocal: true
-  thrustCloudFlare: true
-  thrustEdgeOne: true
+  trustLocal: true
+  trustCloudFlare: true
+  trustEdgeOne: true
   trustedIPs:
     - "127.0.0.1/32"
   logLevel: info

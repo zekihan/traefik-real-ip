@@ -83,9 +83,9 @@ func TestSocketPeerZones(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := plugin.CreateConfig()
-			cfg.ThrustLocal = tt.local
-			cfg.ThrustCloudFlare = false
-			cfg.ThrustEdgeOne = false
+			cfg.TrustLocal = tt.local
+			cfg.TrustCloudFlare = false
+			cfg.TrustEdgeOne = false
 			cfg.TrustedIPs = tt.trusted
 			cfg.DenyUntrusted = tt.deny
 			cfg.XForwardedForMode = plugin.XForwardedForModeReplace
