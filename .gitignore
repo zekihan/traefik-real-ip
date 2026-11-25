@@ -58,3 +58,5 @@ go.work.sum
 .idea/**/.gitignore
 .idea/**/httpRequests/
 .idea/**/sonarlint/
+
+.idea/
