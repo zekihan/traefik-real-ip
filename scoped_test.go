@@ -180,6 +180,75 @@ func TestScopedNoTrustUsesPeer(t *testing.T) {
 	}
 }
 
+func TestScopedStripsHeaderAliases(t *testing.T) {
+	handler := newScoped(t, func(cfg *traefikrealip.Config) {
+		cfg.CloudflareAuthHeader = "X_Edge_Auth"
+		cfg.CloudflareAuthSecretFile = writeSecret(t, edgeSecret+"\n")
+	})
+	aliases := []string{
+		"X_Forwarded_For", "x_REAL_ip", "Cf_Connecting_Ip", "True_Client_Ip",
+		"X_Is-Trusted", "X_Edge_Auth", "X-Edge-Auth",
+	}
+
+	headers := map[string][]string{"X_Unrelated": {"preserve"}}
+	for _, alias := range aliases {
+		headers[alias] = []string{"fixture"}
+	}
+
+	runScoped(t, handler, &scopedCase{
+		desc: "underscore and case variants", remote: clientIPv4, status: okStatus,
+		headers: headers, absent: aliases,
+		expected: map[string]string{
+			"X-Real-Ip": clientIPv4, "X-Forwarded-For": clientIPv4, "X_Unrelated": "preserve",
+		},
+	})
+}
+
+func TestLegacyStripsRewrittenHeaderAliases(t *testing.T) {
+	cfg := traefikrealip.CreateConfig()
+	cfg.TrustLocal = false
+	cfg.TrustCloudFlare = false
+	cfg.TrustEdgeOne = false
+	cfg.TrustedIPs = []string{"192.0.2.0/24"}
+	cfg.XForwardedForMode = traefikrealip.XForwardedForModeAppend
+
+	var downstream http.Header
+
+	handler, err := traefikrealip.New(t.Context(), http.HandlerFunc(
+		func(_ http.ResponseWriter, req *http.Request) { downstream = req.Header.Clone() },
+	), cfg, "legacy")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", http.NoBody)
+	req.RemoteAddr = "192.0.2.1:12345"
+	req.Header.Set("X-Forwarded-For", clientIPv4+", 192.0.2.2")
+	req.Header.Set("X_Unrelated", "preserve")
+
+	aliases := []string{"X_Is_Trusted", "X_Real_Ip", "X_Forwarded_For", "x-forwarded-for"}
+	for _, alias := range aliases {
+		req.Header[alias] = []string{"fixture"}
+	}
+
+	handler.ServeHTTP(httptest.NewRecorder(), req)
+
+	for _, alias := range aliases {
+		if _, present := downstream[alias]; present {
+			t.Errorf("downstream retained header %q", alias)
+		}
+	}
+
+	for name, want := range map[string]string{
+		"X-Is-Trusted": "yes", "X-Real-Ip": clientIPv4,
+		"X-Forwarded-For": clientIPv4 + ", 192.0.2.2", "X_Unrelated": "preserve",
+	} {
+		if got := downstream.Values(name); len(got) != 1 || got[0] != want {
+			t.Errorf("downstream %s = %q, want [%q]", name, got, want)
+		}
+	}
+}
+
 // The cloudflared listener: pod peers may assert Cf-Connecting-Ip only with the edge secret.
 func TestScopedCloudflaredWithEdgeSecret(t *testing.T) {
 	path := writeSecret(t, edgeSecret+"\n"+edgeSecret2+"\n")

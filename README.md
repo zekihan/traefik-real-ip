@@ -253,8 +253,10 @@ Every other peer is its own client address. After resolution the plugin removes 
 assertion (`Cf-Connecting-Ip`, `Cf-Connecting-Ipv6`, `Cf-Pseudo-Ipv4`, `Eo-Connecting-Ip`,
 `True-Client-Ip`, `X-Client-Ip`, `X-Cluster-Client-Ip`, `X-Original-Forwarded-For`,
 `Fastly-Client-Ip`, `Forwarded`, `X-Is-Trusted` and the edge-secret header) and writes the
-resolved address as the only `X-Real-IP` and `X-Forwarded-For` value. `trustLocal` is ignored
-and `trustedIPs` is rejected in this mode.
+resolved address as the only `X-Real-IP` and `X-Forwarded-For` value. Header removal is
+case-insensitive and includes underscore spellings of these names. Legacy mode also removes
+aliases of the three headers it rewrites: `X-Is-Trusted`, `X-Real-IP` and `X-Forwarded-For`.
+`trustLocal` is ignored and `trustedIPs` is rejected in scoped mode.
 
 Cloudflare publishes one set of edge addresses for all customers, so any Cloudflare zone can send
 `Cf-Connecting-Ip` to your public address. To accept only your own zone, add the secret at the edge

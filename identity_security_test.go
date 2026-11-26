@@ -10,6 +10,19 @@ import (
 	"testing"
 )
 
+func TestNormalizeHeaderNameAliases(t *testing.T) {
+	for input, want := range map[string]string{
+		"X-Forwarded-For": "x-forwarded-for",
+		"X_fOrWaRdEd_For": "x-forwarded-for",
+		"fOrWaRdEd":       "forwarded",
+		"X_Other__Header": "x-other--header",
+	} {
+		if got := normalizeHeaderName(input); got != want {
+			t.Errorf("normalizeHeaderName(%q) = %q, want %q", input, got, want)
+		}
+	}
+}
+
 func TestInvalidIdentityHeadersAreBounded(t *testing.T) {
 	for _, header := range []string{CfConnectingIP, EoConnectingIP, XRealIP, XForwardedFor} {
 		for _, level := range []slog.Level{slog.LevelInfo, slog.LevelDebug} {
