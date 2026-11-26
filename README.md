@@ -95,6 +95,10 @@ http:
 The former `thrustLocal`, `thrustCloudFlare`, and `thrustEdgeOne` keys remain accepted for compatibility and emit a
 deprecation warning. Use the `trust*` spellings for new configurations.
 
+Unknown option names prevent the middleware from initializing. The error lists the unknown names
+in sorted order and omits their values. Nonempty `forwardedTrustedIPs`, `cloudflareTrustedIPs`,
+`cloudflareAuthHeader`, and `cloudflareAuthSecretFile` require `scopedTrust: true`.
+
 Remote providers must return valid, nonempty CIDR lists from every required URL before the plugin can initialize.
 Each Cloudflare feed must contain only ranges for its advertised address family.
 If an enabled provider fails, `New` returns an error, even when local or custom trusted ranges are configured.

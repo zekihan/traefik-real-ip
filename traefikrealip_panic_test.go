@@ -78,6 +78,7 @@ func newPanicResolver(t *testing.T, next http.Handler) *IPResolver {
 			CloudflareTrustedIPs:     nil,
 			CloudflareAuthHeader:     "",
 			CloudflareAuthSecretFile: "",
+			Unknown:                  nil,
 		},
 		name:          "test",
 		trustedIPNets: nil, scoped: nil,

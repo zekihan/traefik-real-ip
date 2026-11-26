@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"reflect"
+	"sort"
 	"strings"
 	"sync"
 
@@ -21,6 +22,8 @@ var (
 	ErrInvalidTrustedIPRange    = errors.New("invalid trusted IP range")
 	ErrInvalidXForwardedForMode = errors.New("invalid X-Forwarded-For mode")
 	ErrInvalidPanicPolicy       = errors.New("invalid panic policy")
+	ErrUnknownConfigKey         = errors.New("unknown configuration key")
+	ErrScopedOnlyOption         = errors.New("configuration option requires scopedTrust: true")
 	ErrPanic                    = errors.New("panic")
 	ErrUntrustedIP              = errors.New("request from untrusted IP denied")
 )
@@ -35,22 +38,24 @@ const (
 
 // Config the plugin configuration.
 type Config struct {
-	LegacyThrustLocal        *bool    `json:"thrustLocal,omitempty"              mapstructure:"thrustLocal"`
-	LegacyThrustEdgeOne      *bool    `json:"thrustEdgeOne,omitempty"            mapstructure:"thrustEdgeOne"`
-	LegacyThrustCloudFlare   *bool    `json:"thrustCloudFlare,omitempty"         mapstructure:"thrustCloudFlare"`
-	CloudflareAuthSecretFile string   `json:"cloudflareAuthSecretFile,omitempty"`
-	LogLevel                 string   `json:"logLevel,omitempty"`
-	CloudflareAuthHeader     string   `json:"cloudflareAuthHeader,omitempty"`
-	XForwardedForMode        string   `json:"xForwardedForMode,omitempty"`
-	PanicPolicy              string   `json:"panicPolicy,omitempty"`
-	ForwardedTrustedIPs      []string `json:"forwardedTrustedIPs,omitempty"`
-	CloudflareTrustedIPs     []string `json:"cloudflareTrustedIPs,omitempty"`
-	TrustedIPs               []string `json:"trustedIPs,omitempty"`
-	TrustLocal               bool     `json:"trustLocal,omitempty"               mapstructure:"trustLocal"`
-	TrustCloudFlare          bool     `json:"trustCloudFlare,omitempty"          mapstructure:"trustCloudFlare"`
-	TrustEdgeOne             bool     `json:"trustEdgeOne,omitempty"             mapstructure:"trustEdgeOne"`
-	DenyUntrusted            bool     `json:"denyUntrusted,omitempty"`
-	ScopedTrust              bool     `json:"scopedTrust,omitempty"`
+	//nolint:revive // Traefik's decoder supports the remain option.
+	Unknown                  map[string]any `json:"-"                                  mapstructure:",remain"`
+	LegacyThrustEdgeOne      *bool          `json:"thrustEdgeOne,omitempty"            mapstructure:"thrustEdgeOne"`
+	LegacyThrustCloudFlare   *bool          `json:"thrustCloudFlare,omitempty"         mapstructure:"thrustCloudFlare"`
+	LegacyThrustLocal        *bool          `json:"thrustLocal,omitempty"              mapstructure:"thrustLocal"`
+	CloudflareAuthSecretFile string         `json:"cloudflareAuthSecretFile,omitempty"`
+	LogLevel                 string         `json:"logLevel,omitempty"`
+	CloudflareAuthHeader     string         `json:"cloudflareAuthHeader,omitempty"`
+	XForwardedForMode        string         `json:"xForwardedForMode,omitempty"`
+	PanicPolicy              string         `json:"panicPolicy,omitempty"`
+	ForwardedTrustedIPs      []string       `json:"forwardedTrustedIPs,omitempty"`
+	TrustedIPs               []string       `json:"trustedIPs,omitempty"`
+	CloudflareTrustedIPs     []string       `json:"cloudflareTrustedIPs,omitempty"`
+	TrustLocal               bool           `json:"trustLocal,omitempty"               mapstructure:"trustLocal"`
+	TrustCloudFlare          bool           `json:"trustCloudFlare,omitempty"          mapstructure:"trustCloudFlare"`
+	TrustEdgeOne             bool           `json:"trustEdgeOne,omitempty"             mapstructure:"trustEdgeOne"`
+	DenyUntrusted            bool           `json:"denyUntrusted,omitempty"`
+	ScopedTrust              bool           `json:"scopedTrust,omitempty"`
 }
 
 // CreateConfig creates the default plugin configuration.
@@ -73,6 +78,7 @@ func CreateConfig() *Config {
 		CloudflareTrustedIPs:     make([]string, 0),
 		CloudflareAuthHeader:     "",
 		CloudflareAuthSecretFile: "",
+		Unknown:                  nil,
 	}
 }
 
@@ -106,6 +112,30 @@ func hasDeprecatedTrustKeys(config *Config) bool {
 }
 
 func validateConfig(config *Config) error {
+	if len(config.Unknown) > 0 {
+		keys := make([]string, 0, len(config.Unknown))
+		for key := range config.Unknown {
+			keys = append(keys, key)
+		}
+
+		sort.Strings(keys)
+
+		return fmt.Errorf("%w: %s", ErrUnknownConfigKey, strings.Join(keys, ", "))
+	}
+
+	if !config.ScopedTrust {
+		switch {
+		case len(config.ForwardedTrustedIPs) > 0:
+			return fmt.Errorf("%w: forwardedTrustedIPs", ErrScopedOnlyOption)
+		case len(config.CloudflareTrustedIPs) > 0:
+			return fmt.Errorf("%w: cloudflareTrustedIPs", ErrScopedOnlyOption)
+		case config.CloudflareAuthHeader != "":
+			return fmt.Errorf("%w: cloudflareAuthHeader", ErrScopedOnlyOption)
+		case config.CloudflareAuthSecretFile != "":
+			return fmt.Errorf("%w: cloudflareAuthSecretFile", ErrScopedOnlyOption)
+		}
+	}
+
 	if !isValidPanicPolicy(config.PanicPolicy) {
 		return fmt.Errorf("%w: %s", ErrInvalidPanicPolicy, config.PanicPolicy)
 	}
