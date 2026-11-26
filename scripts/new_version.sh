@@ -26,11 +26,10 @@ fi
 
 echo "New version: ${new_vers}"
 
-echo "${new_vers}" >VERSION
-
-readme=$(cat README.md)
-readme="${readme//${vers}/${new_vers}}"
-echo "${readme}" >README.md
+version_pattern=$(printf '%s\n' "${vers}" | sed 's/\./\\./g')
+readme=$(sed "s/${version_pattern}/${new_vers}/g" README.md)
+printf '%s\n' "${new_vers}" >VERSION
+printf '%s\n' "${readme}" >README.md
 
 git add VERSION
 git add README.md
