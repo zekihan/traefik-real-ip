@@ -51,7 +51,7 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update -qq
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends make build-essential
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends make build-essential dash shellcheck
           if [ -f .github/scripts/install_build_deps.sh ]; then
             echo "Installing build dependencies from .github/scripts/install_build_deps.sh"
             bash .github/scripts/install_build_deps.sh
@@ -80,6 +80,11 @@ jobs:
       - name: Test
         run: |
           make test
+
+      - name: Test release preparation
+        run: |
+          shellcheck scripts/new_version.sh scripts/test_new_version.sh
+          make test/release
 
       - name: Integration Test
         id: integration_test

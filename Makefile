@@ -33,6 +33,11 @@ test: tidy
 	./scripts/go_test.sh -v -buildvcs -vet=all ./...
 	./scripts/go_test.sh -v -buildvcs -vet=all -race ./...
 
+## test/release: verify local release preparation under dash
+.PHONY: test/release
+test/release:
+	sh ./scripts/test_new_version.sh
+
 ## test/cover: run all tests and display coverage
 .PHONY: test/cover
 test/cover: tidy
