@@ -355,7 +355,23 @@ func (resolver *IPResolver) serveHTTP(rw http.ResponseWriter, req *http.Request,
 		)
 	}
 
+	stripLegacyHeaderAliases(req.Header)
 	resolver.next.ServeHTTP(rw, req)
+}
+
+func normalizeHeaderName(name string) string {
+	return strings.ToLower(strings.ReplaceAll(name, "_", "-"))
+}
+
+func stripLegacyHeaderAliases(headers http.Header) {
+	for name := range headers {
+		switch normalized := normalizeHeaderName(name); normalized {
+		case "x-is-trusted", "x-real-ip", "x-forwarded-for":
+			if name != http.CanonicalHeaderKey(normalized) {
+				delete(headers, name)
+			}
+		}
+	}
 }
 
 func (resolver *IPResolver) logTrustedIPFetchResult(

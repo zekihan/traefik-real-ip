@@ -51,6 +51,18 @@ var identityHeaders = []string{
 	XIsTrusted,
 }
 
+var scopedIdentityHeaderNames = func() map[string]struct{} {
+	names := map[string]struct{}{
+		normalizeHeaderName(XRealIP):       {},
+		normalizeHeaderName(XForwardedFor): {},
+	}
+	for _, name := range identityHeaders {
+		names[normalizeHeaderName(name)] = struct{}{}
+	}
+
+	return names
+}()
+
 type scopedTrust struct {
 	edgeAuth   *edgeAuth
 	forwarded  []*net.IPNet
@@ -323,12 +335,17 @@ func (resolver *IPResolver) resolveForwarded(
 // setScopedHeaders removes every alternative identity assertion and the edge secret,
 // then writes the resolved address as the only X-Real-IP and X-Forwarded-For value.
 func (resolver *IPResolver) setScopedHeaders(req *http.Request, ip net.IP) {
-	for _, header := range identityHeaders {
-		req.Header.Del(header)
+	edgeHeader := ""
+	if auth := resolver.scoped.edgeAuth; auth != nil {
+		edgeHeader = normalizeHeaderName(auth.header)
 	}
 
-	if resolver.scoped.edgeAuth != nil {
-		req.Header.Del(resolver.scoped.edgeAuth.header)
+	for name := range req.Header {
+		normalized := normalizeHeaderName(name)
+		if _, strip := scopedIdentityHeaderNames[normalized]; strip ||
+			(edgeHeader != "" && normalized == edgeHeader) {
+			delete(req.Header, name)
+		}
 	}
 
 	req.Header.Set(XRealIP, ip.String())
