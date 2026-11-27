@@ -17,7 +17,6 @@ proxy, or load balancer like Cloudflare.
 - Extracts real IP from `Cf-Connecting-Ip`, `Eo-Connecting-Ip`, `X-Real-IP`, and `X-Forwarded-For` headers
 - Validates whether the source IP is trusted before accepting header values
 - Built-in support for Cloudflare IP ranges
-- Optional support for EdgeOne IP ranges
 - Supports local/private IP ranges
 - Custom trusted IP configuration
 - Configurable logging level
@@ -65,7 +64,6 @@ http:
         traefik-real-ip:
           trustLocal: true
           trustCloudFlare: true
-          trustEdgeOne: false
           trustedIPs:
             - "1.2.3.4/32"
             - "10.0.0.0/8"
@@ -80,7 +78,7 @@ http:
 |---------------------|------------------|----------|-------------------------------------------------------------------------------------------------------------|
 | `trustLocal`       | boolean          | `true`   | Trust local and private IP ranges                                                                           |
 | `trustCloudFlare`  | boolean          | `true`   | Trust Cloudflare IP ranges                                                                                  |
-| `trustEdgeOne`     | boolean          | `false`  | Trust EdgeOne IP ranges                                                                                     |
+| `trustEdgeOne`     | boolean          | `false`  | Deprecated. Trust the frozen EdgeOne IP list.                                                               |
 | `trustedIPs`        | array of strings | `[]`     | Additional IP ranges to trust in CIDR notation                                                              |
 | `logLevel`          | string           | `info`   | Log level (debug, info, warn, error)                                                                        |
 | `denyUntrusted`     | boolean          | `false`  | Deny requests from untrusted IPs with 403 Forbidden                                                         |
@@ -93,7 +91,11 @@ http:
 | `cloudflareAuthSecretFile` | string      | `""`   | Scoped mode: file holding the edge secret (one per line, current and previous)                              |
 
 The former `thrustLocal`, `thrustCloudFlare`, and `thrustEdgeOne` keys remain accepted for compatibility and emit a
-deprecation warning. Use the `trust*` spellings for new configurations.
+deprecation warning. Use `trustLocal` and `trustCloudFlare` in place of their legacy spellings.
+
+`trustEdgeOne` and its alias `thrustEdgeOne` are scheduled for removal in the next minor release. Enabling EdgeOne
+trust logs a startup warning and still uses the July 1, 2026 snapshot. The scheduled workflow refreshes only
+Cloudflare's IPv4 and IPv6 lists. Move EdgeOne client IP handling off this list before upgrading to the next minor.
 
 Unknown option names prevent the middleware from initializing. The error lists the unknown names
 in sorted order and omits their values. Nonempty `forwardedTrustedIPs`, `cloudflareTrustedIPs`,
@@ -243,7 +245,7 @@ where each listener has a known kind of peer:
 | Header | Accepted only from |
 |---|---|
 | `Cf-Connecting-Ip` | Cloudflare ranges (`trustCloudFlare`) or `cloudflareTrustedIPs`, and with a valid edge secret when `cloudflareAuthHeader` is set |
-| `Eo-Connecting-Ip` | EdgeOne ranges (`trustEdgeOne`) |
+| `Eo-Connecting-Ip` | Frozen EdgeOne ranges (deprecated `trustEdgeOne`) |
 | `X-Real-IP`, `X-Forwarded-For` | `forwardedTrustedIPs` |
 
 A private or link-local `X-Real-IP` from a forwarded peer is skipped, as in the default mode.
