@@ -185,7 +185,15 @@ func New(
 
 	ipResolver.logger = pluginLogger
 	if hasDeprecatedTrustKeys(config) {
-		pluginLogger.WarnContext(ctx, "thrust* configuration keys are deprecated; use trust* keys")
+		pluginLogger.WarnContext(ctx, "thrust* configuration keys are deprecated")
+	}
+
+	if configTrustEdgeOne(config) {
+		pluginLogger.WarnContext(
+			ctx,
+			"trustEdgeOne and thrustEdgeOne are deprecated and will be removed in the next minor release. "+
+				"The EdgeOne IP list is no longer maintained.",
+		)
 	}
 
 	if config.ScopedTrust {

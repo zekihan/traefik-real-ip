@@ -71,6 +71,6 @@ jobs:
             remote_ips/cloudflare_v6
           commit-message: Update trusted IPs
           title: Update trusted IPs in traefik-real-ip middleware
-          body: Update the trusted IPs for Cloudflare and EdgeOne in the traefik-real-ip middleware configuration.
+          body: Update the trusted IPv4 and IPv6 ranges for Cloudflare in the traefik-real-ip middleware.
           branch: automated-update-trusted-ips
           reviewers: zekihan
